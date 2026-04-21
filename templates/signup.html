@@ -1,0 +1,130 @@
+{% extends "auth_base.html" %}
+{% block title %}Sign Up - EduTrack{% endblock %}
+{% block auth_heading %}Create a new account{% endblock %}
+{% block auth_intro %}Register students, teachers, and admins from the same streamlined template structure so the project stays easier to grow.{% endblock %}
+
+{% block auth_content %}
+  <div class="auth-form-box">
+    <div class="auth-copy">
+      <h2>Fill in your details</h2>
+      <p class="auth-sub">Select a role first, then complete the required fields.</p>
+    </div>
+
+    <div class="role-tabs">
+      <button type="button" class="role-tab active" onclick="setRole('student', this)">Student</button>
+      <button type="button" class="role-tab" onclick="setRole('teacher', this)">Teacher</button>
+      <button type="button" class="role-tab" onclick="setRole('admin', this)">Admin</button>
+    </div>
+
+    <form method="POST" class="auth-form" enctype="multipart/form-data">
+      <input type="hidden" name="role" id="role-input" value="student" />
+
+      <div class="form-group">
+        <label class="form-label">Full name</label>
+        <input type="text" name="name" class="form-control" placeholder="Enter your name" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Email address</label>
+        <input type="email" name="email" class="form-control" placeholder="you@example.com" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" class="form-control" placeholder="Choose a password" required />
+      </div>
+
+      <div id="student-fields">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Phone</label>
+            <input type="text" name="phone" class="form-control" placeholder="9800000000" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Grade</label>
+            <select name="year" class="form-control">
+              {% for grade in range(1, 13) %}
+                <option value="{{ grade }}">Grade {{ grade }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Class / Section</label>
+          <select name="course" class="form-control">
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="Section 1">Section 1</option>
+            <option value="Section 2">Section 2</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Student face photo</label>
+          <input type="file" name="student_image" class="form-control" accept="image/*" />
+          <p class="auth-sub" style="margin-top:8px;">Optional now, but recommended. If uploaded, the system saves it into the student face dataset during account creation.</p>
+        </div>
+      </div>
+
+      <div id="teacher-fields" class="role-only-fields" hidden>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Subject</label>
+            <select name="subject" class="form-control">
+              <option value="Math">Math</option>
+              <option value="Science">Science</option>
+              <option value="Social">Social</option>
+              <option value="English">English</option>
+              <option value="Nepali">Nepali</option>
+              <option value="Computer">Computer</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Assigned Grade</label>
+            <select name="assigned_year" class="form-control">
+              <option value="">Select grade</option>
+              {% for grade in range(1, 13) %}
+                <option value="{{ grade }}">Grade {{ grade }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Assigned Class / Section</label>
+          <select name="assigned_course" class="form-control">
+            <option value="">Select class / section</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="Section 1">Section 1</option>
+            <option value="Section 2">Section 2</option>
+          </select>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary auth-submit">Create account</button>
+    </form>
+
+    <div class="auth-link">
+      Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setRole(role, el) {
+  document.getElementById('role-input').value = role;
+  document.querySelectorAll('.role-tab').forEach(function(tab) {
+    tab.classList.remove('active');
+  });
+  el.classList.add('active');
+
+  document.getElementById('student-fields').hidden = role !== 'student';
+  document.getElementById('teacher-fields').hidden = role !== 'teacher';
+}
+</script>
+{% endblock %}

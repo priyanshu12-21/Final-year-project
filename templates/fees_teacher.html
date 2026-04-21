@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Fees — EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Fee Management</h1>
+  <p>Add and track student fee payments</p>
+</div>
+
+<!-- Add fee form -->
+<div class="card" style="margin-bottom:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:20px;">Add Fee Record</strong>
+  <form method="POST" action="{{ url_for('add_fee') }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Student</label>
+        <select name="student_id" class="form-control" required>
+          <option value="">Select student</option>
+          {% for s in students %}
+            <option value="{{ s.id }}">{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Amount </label>
+        <input type="number" name="amount" class="form-control" placeholder="Amount" required/>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Due Date</label>
+        <input type="date" name="due_date" class="form-control"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input type="text" name="description" class="form-control" placeholder="Tuition Fee"/>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Fee</button>
+  </form>
+</div>
+
+<!-- All fees -->
+<div class="card">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">All Fee Records</strong>
+  {% if records %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Student</th><th>Description</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for f in records %}
+        <tr>
+          <td>{{ f.student_name }}</td>
+          <td>{{ f.description or '—' }}</td>
+          <td><strong>{{ f.amount }}</strong></td>
+          <td>{{ f.due_date or '—' }}</td>
+          <td>
+            <span class="badge {% if f.status == 'Paid' %}badge-success{% else %}badge-warning{% endif %}">
+              {{ 'Unpaid' if f.status == 'Pending' else f.status }}
+            </span>
+          </td>
+          <td>
+            {% if f.status == 'Pending' %}
+              <a href="{{ url_for('pay_fee', fee_id=f.id) }}" class="btn btn-success btn-sm">Mark Paid</a>
+            {% else %}
+              <span style="color:var(--muted); font-size:13px;">Paid ✓</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No fee records yet.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

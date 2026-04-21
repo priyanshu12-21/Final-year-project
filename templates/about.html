@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>About - EduTrack</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+</head>
+<body style="background:var(--bg);">
+
+<div class="about-hero">
+  <h1>Bijeswori Learning Management System (BLMS)</h1>
+  <p>An AI-based academic management system with face-recognition attendance, analytics, reports, and fee tracking.</p>
+  <div style="margin-top:24px;">
+    {% if session.user_id %}
+      <a href="{{ url_for('dashboard') }}" class="btn btn-outline" style="color:white; border-color:rgba(255,255,255,0.3);">&larr; Back to Dashboard</a>
+    {% else %}
+      <a href="{{ url_for('login') }}" class="btn btn-outline" style="color:white; border-color:rgba(255,255,255,0.3);">Login</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="about-section">
+  <h2 style="font-family:'DM Serif Display',serif; font-size:32px; font-weight:400; text-align:center; margin-bottom:8px;">What BLMS does?</h2>
+  <p style="text-align:center; color:var(--muted); font-size:16px;">Academic monitoring, attendance automation, and school reporting in one place</p>
+
+  <div class="about-grid">
+    <div class="about-card">
+      <div class="about-icon">AI</div>
+      <h3>Attendance</h3>
+      <p>Face recognition and teacher tools record present, late, very late, and absent attendance in real time.</p>
+    </div>
+    <div class="about-card">
+      <div class="about-icon">GR</div>
+      <h3>Performance Analytics</h3>
+      <p>Track marks with visual graphs, subject trends, and performance insights for each student.</p>
+    </div>
+    <div class="about-card">
+      <div class="about-icon">Rs</div>
+      <h3>Fees</h3>
+      <p>Track paid and pending fees, create reminders, and keep payment history visible for staff and students.</p>
+    </div>
+    <div class="about-card">
+      <div class="about-icon">RC</div>
+      <h3>Recommendations</h3>
+      <p>Generate data-driven recommendations from attendance, marks, and fee records to support improvement.</p>
+    </div>
+    <div class="about-card">
+      <div class="about-icon">RP</div>
+      <h3>Dashboard And Reports</h3>
+      <p>Use centralized dashboards and downloadable reports to review attendance, results, and fee status quickly.</p>
+    </div>
+    <div class="about-card">
+      <div class="about-icon">RL</div>
+      <h3>Secure Access</h3>
+      <p>Students and teachers have separate role-based access, with safer password storage and controlled views.</p>
+    </div>
+  </div>
+
+  <div style="text-align:center; margin-top:60px; padding:40px; background:var(--white); border-radius:var(--radius); border:1px solid var(--border);">
+    <h3 style="font-family:'DM Serif Display',serif; font-size:24px; font-weight:400; margin-bottom:8px;">Built by</h3>
+    <p style="color:var(--muted); font-size:15px;">Priyanshu Man Tuladhar</p>
+    <p style="color:var(--muted); font-size:14px; margin-top:8px;">PMT</p>
+  </div>
+</div>
+
+</body>
+</html>

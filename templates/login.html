@@ -1,0 +1,51 @@
+{% extends "auth_base.html" %}
+{% block title %}Login - EduTrack{% endblock %}
+{% block auth_heading %}Welcome back{% endblock %}
+{% block auth_intro %}Sign in to reach attendance, marks, fees, reports, and face recognition tools from one structured dashboard.{% endblock %}
+
+{% block auth_content %}
+  <div class="auth-form-box">
+    <div class="auth-copy">
+      <h2>Sign in to your account</h2>
+      <p class="auth-sub">Choose your role and continue.</p>
+    </div>
+
+    <div class="role-tabs" id="role-tabs">
+      <button type="button" class="role-tab active" onclick="setRole('student', this)">Student</button>
+      <button type="button" class="role-tab" onclick="setRole('teacher', this)">Teacher</button>
+      <button type="button" class="role-tab" onclick="setRole('admin', this)">Admin</button>
+    </div>
+
+    <form method="POST" class="auth-form">
+      <input type="hidden" name="role" id="role-input" value="student" />
+
+      <div class="form-group">
+        <label class="form-label">Email address</label>
+        <input type="email" name="email" class="form-control" placeholder="you@example.com" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" class="form-control" placeholder="Enter your password" required />
+      </div>
+
+      <button type="submit" class="btn btn-primary auth-submit">Sign in</button>
+    </form>
+
+    <div class="auth-link">
+      Don't have an account? <a href="{{ url_for('signup') }}">Create one</a>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setRole(role, el) {
+  document.getElementById('role-input').value = role;
+  document.querySelectorAll('.role-tab').forEach(function(tab) {
+    tab.classList.remove('active');
+  });
+  el.classList.add('active');
+}
+</script>
+{% endblock %}

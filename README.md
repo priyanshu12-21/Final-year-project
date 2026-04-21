@@ -48,3 +48,4 @@ python .\app.py
 
 - If `dlib` is missing, the app will still open, and the face pages will show a clear dependency message instead of crashing.
 # Final-year-project
+# Final-year-project

@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+{% block title %}{% if session.role == 'admin' %}Admin Dashboard{% else %}Teacher Dashboard{% endif %} - EduTrack{% endblock %}
+{% block content %}
+
+{% if session.role == 'admin' %}
+<section class="card feature-banner dashboard-hero">
+  <div class="dashboard-hero-grid">
+    <div class="dashboard-hero-copy">
+      <h1>Administrative Control Center</h1>
+      <p>Monitor school activity, system users, attendance operations, and finance status from one structured overview.</p>
+
+      <div class="hero-badges">
+        <span class="badge">Student Records</span>
+        <span class="badge">Teacher Accounts</span>
+        <span class="badge">Face Attendance Admin</span>
+      </div>
+
+      <div class="hero-actions">
+        <a href="{{ url_for('attendance') }}" class="btn btn-primary">Attendance</a>
+        <a href="{{ url_for('subjects') }}" class="btn btn-outline">Subjects</a>
+        <a href="{{ url_for('fees') }}" class="btn btn-outline">Fees</a>
+        <a href="{{ url_for('face_admin') }}" class="btn btn-outline">Face Attendance</a>
+      </div>
+    </div>
+
+    <div class="hero-panel">
+      <h3>School Snapshot</h3>
+      <div class="hero-metric">
+        <div class="hero-metric-item">
+          <strong>{{ students_count }}</strong>
+          <span>students</span>
+        </div>
+        <div class="hero-metric-item">
+          <strong>{{ teachers_count }}</strong>
+          <span>teachers</span>
+        </div>
+        <div class="hero-metric-item">
+          <strong>{{ today_att }}</strong>
+          <span>attendance today</span>
+        </div>
+        <div class="hero-metric-item">
+          <strong>{{ pending_fees }}</strong>
+          <span>pending fees</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="stat-grid">
+  <div class="stat-card accent">
+    <div class="stat-label">Students</div>
+    <div class="stat-value">{{ students_count }}</div>
+    <div class="stat-sub">registered accounts in the system</div>
+  </div>
+  <div class="stat-card success">
+    <div class="stat-label">Teachers</div>
+    <div class="stat-value">{{ teachers_count }}</div>
+    <div class="stat-sub">active teaching staff</div>
+  </div>
+  <div class="stat-card warning">
+    <div class="stat-label">Admins</div>
+    <div class="stat-value">{{ admins_count }}</div>
+    <div class="stat-sub">management accounts</div>
+  </div>
+  <div class="stat-card danger">
+    <div class="stat-label">Pending Fees</div>
+    <div class="stat-value">{{ pending_fees }}</div>
+    <div class="stat-sub">records awaiting payment</div>
+  </div>
+</div>
+
+<div class="dashboard-split">
+  <div class="card">
+    <div class="section-card-title">
+      <div>
+        <h3>Create Notification</h3>
+        <p>Only admins can send announcements to all users, teachers, or students.</p>
+      </div>
+    </div>
+    <form method="POST" action="{{ url_for('admin_create_notification') }}">
+      <div class="form-group">
+        <label class="form-label">Audience</label>
+        <select name="audience" class="form-control" required>
+          <option value="all">All users</option>
+          <option value="teacher">Teachers only</option>
+          <option value="student">Students only</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Specific Student</label>
+        <select name="student_id" class="form-control">
+          <option value="">All students in the selected audience</option>
+          {% for student in students %}
+            <option value="{{ student.id }}">{{ student.name }}</option>
+          {% endfor %}
+        </select>
+        <p class="cell-subtext" style="margin-top:8px;">Choose a student only when the audience is set to Students only.</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Title</label>
+        <input type="text" name="title" class="form-control" maxlength="120" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea name="message" class="form-control" rows="4" maxlength="1000" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Send Notification</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="section-card-title">
+      <div>
+        <h3>Recent Notifications</h3>
+        <p>Latest internal announcements and admin messages.</p>
+      </div>
+    </div>
+    {% if notifications %}
+      <div class="stack-list">
+        {% for item in notifications %}
+          <div class="stack-item">
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.message }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="card-muted">No notifications yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-card-title">
+      <div>
+        <h3>Daily Overview</h3>
+        <p>Quick operational summary for the current day.</p>
+      </div>
+    </div>
+    <div class="stack-list">
+      <div class="stack-item">
+        <strong>Attendance Records Today</strong>
+        <p>{{ today_att }} attendance record(s) have been marked today.</p>
+      </div>
+      <div class="stack-item">
+        <strong>Fee Follow-up</strong>
+        <p>{{ pending_fees }} fee record(s) still need payment follow-up.</p>
+      </div>
+      <div class="stack-item">
+        <strong>System Coverage</strong>
+        <p>{{ teachers_count }} teacher account(s) and {{ students_count }} student account(s) are active in the platform.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card dashboard-table-card">
+  <div class="section-card-title">
+    <div>
+      <h3>All Teachers</h3>
+      <p>Full list of teaching accounts and assigned subjects.</p>
+    </div>
+  </div>
+  {% if teachers %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Subject</th><th>Created</th></tr></thead>
+      <tbody>
+        {% for teacher in teachers %}
+        <tr>
+          <td>{{ teacher.id }}</td>
+          <td><strong>{{ teacher.name }}</strong></td>
+          <td>{{ teacher.email }}</td>
+          <td>{{ teacher.subject or '-' }}</td>
+          <td>{{ teacher.created_at or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="card-muted">No teachers registered yet.</p>
+  {% endif %}
+</div>
+
+<div class="card dashboard-table-card">
+  <div class="section-card-title">
+    <div>
+      <h3>All Students</h3>
+      <p>Registration, class, subject, and fee coverage in one table.</p>
+    </div>
+  </div>
+  {% if students %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Class</th><th>Grade</th><th>Subjects</th><th>Fees</th></tr></thead>
+      <tbody>
+        {% for student in students %}
+        <tr>
+          <td>{{ student.id }}</td>
+          <td><strong>{{ student.name }}</strong></td>
+          <td>{{ student.email }}</td>
+          <td>{{ student.phone or '-' }}</td>
+          <td>{{ student.course or '-' }}</td>
+          <td>Grade {{ student.year or '-' }}</td>
+          <td>{{ student.subject_count }}</td>
+          <td>{{ student.fee_count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="card-muted">No students registered yet.</p>
+  {% endif %}
+</div>
+
+<div class="card dashboard-table-card">
+  <div class="section-card-title">
+    <div>
+      <h3>Admin Accounts</h3>
+      <p>Current system manager accounts.</p>
+    </div>
+  </div>
+  {% if admins %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Created</th></tr></thead>
+      <tbody>
+        {% for admin in admins %}
+        <tr>
+          <td>{{ admin.id }}</td>
+          <td><strong>{{ admin.name }}</strong></td>
+          <td>{{ admin.email }}</td>
+          <td>{{ admin.created_at or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="card-muted">No admin accounts registered yet.</p>
+  {% endif %}
+</div>
+{% else %}
+<section class="card feature-banner dashboard-hero">
+  <div class="dashboard-hero-grid">
+    <div class="dashboard-hero-copy">
+      <h1>Teacher Operations Dashboard</h1>
+      <p>Track attendance, spot low performance quickly, manage fees, and move into face recognition from one faster workspace.</p>
+
+      <div class="hero-badges">
+        <span class="badge">Live Notifications</span>
+        <span class="badge">Low Performance Alerts</span>
+        <span class="badge">Face Recognition</span>
+      </div>
+
+      <div class="hero-actions">
+        <a href="{{ url_for('attendance') }}" class="btn btn-primary">Mark Attendance</a>
+        <a href="{{ url_for('face_camera') }}" class="btn btn-outline">Face Recognition</a>
+        <a href="{{ url_for('marks') }}" class="btn btn-outline">Manage Marks</a>
+        <a href="{{ url_for('reports') }}" class="btn btn-outline">Open Reports</a>
+      </div>
+    </div>
+
+    <div class="hero-panel">
+      <h3>Today at a Glance</h3>
+      <div class="hero-metric">
+        <div class="hero-metric-item">
+          <strong>{{ students_count }}</strong>
+          <span>students</span>
+        </div>
+        <div class="hero-metric-item">
+          <strong>{{ today_att }}</strong>
+          <span>attendance records</span>
+        </div>
+        <div class="hero-metric-item">
+          <strong>{{ pending_fees }}</strong>
+          <span>pending fees</span>
+        </div>
+        <div class="hero-metric-item">
+          <strong>{{ late_students }}</strong>
+          <span>late today</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="stat-grid">
+  <div class="stat-card accent">
+    <div class="stat-label">Total Students</div>
+    <div class="stat-value">{{ students_count }}</div>
+    <div class="stat-sub">currently enrolled</div>
+  </div>
+  <div class="stat-card success">
+    <div class="stat-label">Attendance Today</div>
+    <div class="stat-value">{{ today_att }}</div>
+    <div class="stat-sub">records already marked</div>
+  </div>
+  <div class="stat-card warning">
+    <div class="stat-label">Pending Fees</div>
+    <div class="stat-value">{{ pending_fees }}</div>
+    <div class="stat-sub">students awaiting payment</div>
+  </div>
+  <div class="stat-card danger">
+    <div class="stat-label">Late Today</div>
+    <div class="stat-value">{{ late_students }}</div>
+    <div class="stat-sub">students marked late</div>
+  </div>
+</div>
+
+<div class="dashboard-split">
+  <div class="card">
+    <div class="section-card-title">
+      <div>
+        <h3>Recent Notifications</h3>
+        <p>Messages and alerts relevant to classroom management.</p>
+      </div>
+    </div>
+    {% if notifications %}
+      <div class="stack-list">
+        {% for item in notifications %}
+          <div class="stack-item">
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.message }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="card-muted">No notifications yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-card-title">
+      <div>
+        <h3>Students Needing Support</h3>
+        <p>Recent low performers based on saved marks.</p>
+      </div>
+    </div>
+    {% if low_performers %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Student</th><th>Grade</th><th>Average</th></tr></thead>
+          <tbody>
+            {% for student in low_performers %}
+            <tr>
+              <td><strong>{{ student.name }}</strong></td>
+              <td>Grade {{ student.year or '-' }}</td>
+              <td><span class="badge badge-danger">{{ student.avg_score }}%</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="card-muted">No low-performing students detected right now.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card dashboard-table-card">
+  <div class="section-card-title">
+    <div>
+      <h3>Student Management</h3>
+      <p>Update grade and subject enrollment directly from the dashboard.</p>
+    </div>
+    <span class="table-meta">{{ students_count }} student record(s)</span>
+  </div>
+  {% if students %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Course</th><th>Grade</th><th>Subjects</th><th>Phone</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for s in students %}
+        <tr>
+          <td class="marks-row-index">{{ s.id }}</td>
+          <td>
+            <div class="student-inline">
+              <div class="avatar">{{ s.name[0].upper() }}</div>
+              <strong>{{ s.name }}</strong>
+            </div>
+          </td>
+          <td>{{ s.email }}</td>
+          <td>{{ s.course or '-' }}</td>
+          <td>
+            <select name="year" class="form-control" form="student-edit-{{ s.id }}" style="min-width:120px;">
+              {% for grade in grade_levels %}
+                <option value="{{ grade }}" {% if s.year == grade %}selected{% endif %}>Grade {{ grade }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <select name="subject_names" class="form-control" form="student-edit-{{ s.id }}" multiple size="4" style="min-width:180px;">
+              {% for subject_name in s.subject_options %}
+                <option value="{{ subject_name }}" {% if subject_name in s.current_subjects %}selected{% endif %}>{{ subject_name }}</option>
+              {% endfor %}
+            </select>
+            <div class="cell-subtext" style="margin-top:6px;">Hold Ctrl to select multiple subjects.</div>
+          </td>
+          <td>{{ s.phone or '-' }}</td>
+          <td>
+            <form id="student-edit-{{ s.id }}" method="POST" action="{{ url_for('update_student_dashboard_details', student_id=s.id) }}">
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="card-muted">No students registered yet.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}My Fees - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>My Fees</h1>
+  <p>View your fee payment status</p>
+</div>
+
+<div class="page-actions no-print">
+  <button type="button" class="btn btn-outline" onclick="window.print()">Print Fees</button>
+  <a href="{{ url_for('download_fees_report') }}" class="btn btn-primary">Download Fees CSV</a>
+</div>
+
+{% set pending = records | selectattr('status', 'equalto', 'Pending') | list %}
+{% set paid = records | selectattr('status', 'equalto', 'Paid') | list %}
+
+<div class="stat-grid" style="margin-bottom:24px;">
+  <div class="stat-card warning">
+    <div class="stat-label">Unpaid</div>
+    <div class="stat-value">{{ pending | length }}</div>
+    <div class="stat-sub">NPR {{ pending | sum(attribute='amount') | int }} total</div>
+  </div>
+  <div class="stat-card success">
+    <div class="stat-label">Paid</div>
+    <div class="stat-value">{{ paid | length }}</div>
+    <div class="stat-sub">NPR {{ paid | sum(attribute='amount') | int }} total</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Due</div>
+    <div class="stat-value">NPR {{ records | sum(attribute='amount') | int }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">Fee Records</strong>
+  {% if records %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Description</th><th>Amount</th><th>Due Date</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for f in records %}
+        <tr>
+          <td>{{ f.description or 'Fee Payment' }}</td>
+          <td><strong>NPR {{ f.amount }}</strong></td>
+          <td>{{ f.due_date or '-' }}</td>
+          <td>
+            <span class="badge {% if f.status == 'Paid' %}badge-success{% else %}badge-warning{% endif %}">
+              {{ 'Unpaid' if f.status == 'Pending' else f.status }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No fee records found.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

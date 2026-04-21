@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}My Subjects - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>My Subjects</h1>
+  <p>View the subjects assigned to your grade and your marks progress.</p>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card accent">
+    <div class="stat-label">Grade</div>
+    <div class="stat-value">Grade {{ student.year or '—' }}</div>
+  </div>
+  <div class="stat-card success">
+    <div class="stat-label">Subjects</div>
+    <div class="stat-value">{{ subjects | length }}</div>
+    <div class="stat-sub">assigned to your class</div>
+  </div>
+  <div class="stat-card warning">
+    <div class="stat-label">Course</div>
+    <div class="stat-value" style="font-size:22px;">{{ student.course or '—' }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">Subject Overview</strong>
+  {% if subjects %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Subject</th><th>Exams Recorded</th><th>Average Score</th><th>Best Score</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for subject in subjects %}
+        <tr>
+          <td><strong>{{ subject.subject_name }}</strong></td>
+          <td>{{ subject.exam_count }}</td>
+          <td>
+            {% if subject.average_percentage is not none %}
+              {{ subject.average_percentage | round(0) | int }}%
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if subject.best_percentage is not none %}
+              {{ subject.best_percentage | round(0) | int }}%
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if subject.exam_count > 0 %}
+              {% set avg = subject.average_percentage | round(0) | int %}
+              <span class="badge {% if avg >= 75 %}badge-success{% elif avg >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+                {% if avg >= 75 %}Doing Well{% elif avg >= 50 %}Needs Focus{% else %}At Risk{% endif %}
+              </span>
+            {% else %}
+              <span class="badge badge-info">No marks yet</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No subjects have been assigned to your grade yet.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

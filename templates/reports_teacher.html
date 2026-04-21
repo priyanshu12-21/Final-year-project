@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Reports - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Reports</h1>
+  <p>Review attendance, marks, and fee summaries from one place.</p>
+</div>
+
+<div class="card" style="margin-bottom:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">Filter Reports</strong>
+  <form method="GET" action="{{ url_for('reports') }}">
+    <div class="form-row subject-config-row">
+      <div class="form-group">
+        <label class="form-label">Grade</label>
+        <select name="grade" class="form-control">
+          <option value="">All grades</option>
+          {% for grade in grade_levels %}
+            <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>Grade {{ grade }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group subject-config-action">
+        <button type="submit" class="btn btn-primary">Apply Filter</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="dashboard-split" style="margin-bottom:28px;">
+  <div class="card">
+    <strong style="font-size:15px; display:block; margin-bottom:16px;">Attendance Summary</strong>
+    {% if attendance_summary %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Student</th><th>Grade</th><th>Total</th><th>Present</th><th>Late</th></tr></thead>
+        <tbody>
+          {% for item in attendance_summary %}
+          <tr>
+            <td>{{ item.name }}</td>
+            <td>Grade {{ item.year or '-' }}</td>
+            <td>{{ item.total_classes or 0 }}</td>
+            <td>{{ item.present_count or 0 }}</td>
+            <td>{{ item.late_count or 0 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p style="color:var(--muted); font-size:14px;">No attendance data available.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <strong style="font-size:15px; display:block; margin-bottom:16px;">Performance Summary</strong>
+    {% if marks_summary %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Student</th><th>Grade</th><th>Average Marks</th></tr></thead>
+        <tbody>
+          {% for item in marks_summary %}
+          <tr>
+            <td>{{ item.name }}</td>
+            <td>Grade {{ item.year or '-' }}</td>
+            <td>
+              {% if item.avg_marks is not none %}
+                <span class="badge {% if item.avg_marks >= 75 %}badge-success{% elif item.avg_marks >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+                  {{ item.avg_marks }}%
+                </span>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p style="color:var(--muted); font-size:14px;">No marks data available.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">Fee Summary</strong>
+  {% if fees_summary %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Student</th><th>Grade</th><th>Pending Fees</th></tr></thead>
+      <tbody>
+        {% for item in fees_summary %}
+        <tr>
+          <td>{{ item.name }}</td>
+          <td>Grade {{ item.year or '-' }}</td>
+          <td>NPR {{ item.pending_amount or 0 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No fee data available.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,670 @@
+{% extends "base.html" %}
+{% block title %}Face Attendance - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Face Attendance Admin</h1>
+  <p>Admins can recognize faces to mark attendance, upload and capture student photos, and train the face model from one page.</p>
+</div>
+
+{% if not face_runtime_status.available %}
+<div class="card" style="margin-bottom:20px; border-color:#f59e0b; background:#fff7ed;">
+  <strong style="display:block; margin-bottom:8px;">Face recognition dependency missing</strong>
+  <p style="margin:0;">{{ face_runtime_status.message }}</p>
+</div>
+{% endif %}
+
+<div class="face-attendance-layout" style="margin-bottom:28px;">
+  <div class="card face-attendance-main">
+    <div class="face-attendance-header">
+      <div>
+        <strong>Admin Attendance Scan</strong>
+        <p>Recognize any student from the trained dataset and automatically mark attendance.</p>
+      </div>
+      <span class="badge badge-info">Admin control</span>
+    </div>
+
+    <div class="camera-frame face-attendance-camera">
+      <video id="admin-recognition-video" autoplay playsinline></video>
+      <img
+        id="admin-recognition-preview-image"
+        alt="{{ remote_camera.name if remote_camera.enabled else 'Remote camera preview' }}"
+        style="display:none; width:100%; height:100%; object-fit:cover;"
+      />
+      <canvas id="admin-recognition-canvas" style="display:none;"></canvas>
+    </div>
+
+    {% if remote_camera.enabled %}
+    <div class="stack-item" style="margin-top:16px; margin-bottom:0;">
+      <strong>Remote camera active</strong>
+      <p>This admin screen can use <strong>{{ remote_camera.name }}</strong> from your Raspberry Pi. Start Camera will open the Pi preview instead of asking for the browser webcam.</p>
+    </div>
+    {% endif %}
+
+    <div class="face-attendance-hints">
+      <div class="face-attendance-hint">
+        <strong>1. Start camera</strong>
+        <p>{% if remote_camera.enabled %}Load the Raspberry Pi camera preview.{% else %}Allow browser camera permission when asked.{% endif %}</p>
+      </div>
+      <div class="face-attendance-hint">
+        <strong>2. Keep one face visible</strong>
+        <p>Use one clear student face in the frame.</p>
+      </div>
+      <div class="face-attendance-hint">
+        <strong>3. Mark attendance</strong>
+        <p>If the student is in the trained model, attendance is marked automatically.</p>
+      </div>
+    </div>
+
+    <div class="page-actions" style="margin-top:20px; margin-bottom:0;">
+      <button type="button" class="btn btn-primary" id="admin-start-recognition-btn">Start Camera</button>
+      <button type="button" class="btn btn-success" id="admin-recognize-btn">Recognize And Mark Attendance</button>
+      <a href="{{ url_for('attendance') }}" class="btn btn-outline">Open Attendance Records</a>
+    </div>
+
+    <div class="face-upload-panel">
+      <strong>Use a photo instead</strong>
+      <p>Upload a clear student face image and the system will try to recognize that student and mark attendance from the image.</p>
+      <div class="page-actions" style="margin-top:12px; margin-bottom:0;">
+        <input type="file" id="admin-face-upload-input" accept="image/*" class="form-control face-upload-input">
+        <button type="button" class="btn btn-outline" id="admin-upload-face-btn">Use Uploaded Photo</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card face-attendance-side">
+    <strong style="font-size:15px; display:block; margin-bottom:16px;">Recognition Status</strong>
+
+    <div id="admin-attendance-status-card" class="attendance-status-card pending">
+      <div class="attendance-status-icon" id="admin-attendance-status-icon">?</div>
+      <div>
+        <div class="attendance-status-label" id="admin-attendance-status-label">Waiting For Scan</div>
+        <p class="attendance-status-text" id="admin-attendance-status-text">Start the camera or upload a photo to recognize a student and mark attendance.</p>
+      </div>
+    </div>
+
+    <div class="face-result-grid">
+      <div class="face-result-item">
+        <span class="face-result-label">Face Recognition</span>
+        <strong id="admin-recognition-value">Not checked yet</strong>
+      </div>
+      <div class="face-result-item">
+        <span class="face-result-label">Attendance</span>
+        <strong id="admin-attendance-value">Not marked</strong>
+      </div>
+      <div class="face-result-item">
+        <span class="face-result-label">Student</span>
+        <strong id="admin-student-value">Waiting</strong>
+      </div>
+      <div class="face-result-item">
+        <span class="face-result-label">Marked Time</span>
+        <strong id="admin-time-value">-</strong>
+      </div>
+    </div>
+
+    <div id="admin-recognition-result" class="stack-item face-result-message">
+      <strong>Ready</strong>
+      <p>Use this panel to verify that the student was recognized and attendance was marked correctly.</p>
+    </div>
+
+    <div class="stack-item" style="margin-top:12px;">
+      <strong>Admin workflow</strong>
+      <p>Admins can both manage training data and use live recognition for attendance marking. Students do not get access to this screen.</p>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-split">
+  <div class="card">
+    <strong style="font-size:15px; display:block; margin-bottom:16px;">Upload Student Images</strong>
+    <form method="POST" action="{{ url_for('face_admin_upload') }}" enctype="multipart/form-data">
+      <div class="form-group">
+        <label class="form-label">Student</label>
+        <select name="student_id" class="form-control" required>
+          <option value="">Select student</option>
+          {% for group in student_groups %}
+            <optgroup label="{{ group.label }}">
+              {% for student in group.students %}
+                <option value="{{ student.id }}">{{ student.name }}</option>
+              {% endfor %}
+            </optgroup>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Images</label>
+        <input type="file" name="images" class="form-control" accept="image/*" multiple required />
+      </div>
+      <button type="submit" class="btn btn-primary">Upload Images</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <strong style="font-size:15px; display:block; margin-bottom:16px;">Train Model</strong>
+    <p style="color:var(--muted); font-size:14px; margin-bottom:16px;">
+      After uploading student images into the dataset folders, train the model to generate <code>encodings.pickle</code>.
+    </p>
+    <form method="POST" action="{{ url_for('face_admin_train') }}">
+      <div class="form-group">
+        <label class="form-label">Student To Train</label>
+        <select name="student_id" class="form-control">
+          <option value="">All students</option>
+          {% for group in student_groups %}
+            <optgroup label="{{ group.label }}">
+              {% for student in group.students %}
+                <option value="{{ student.id }}">{{ student.name }}</option>
+              {% endfor %}
+            </optgroup>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Train Face Model</button>
+    </form>
+  </div>
+</div>
+
+<div class="dashboard-split">
+  <div class="card">
+    <strong style="font-size:15px; display:block; margin-bottom:16px;">Capture From Webcam</strong>
+    <div class="form-group">
+      <label class="form-label">Student</label>
+      <select id="camera-student-id" class="form-control" required>
+        <option value="">Select student</option>
+        {% for group in student_groups %}
+          <optgroup label="{{ group.label }}">
+            {% for student in group.students %}
+              <option value="{{ student.id }}">{{ student.name }}</option>
+            {% endfor %}
+          </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="camera-frame">
+      <video id="admin-camera-video" autoplay playsinline></video>
+      <img
+        id="admin-camera-preview-image"
+        alt="{{ remote_camera.name if remote_camera.enabled else 'Remote dataset camera preview' }}"
+        style="display:none; width:100%; height:100%; object-fit:cover;"
+      />
+      <canvas id="admin-camera-canvas" style="display:none;"></canvas>
+    </div>
+    <div class="page-actions" style="margin-top:16px; margin-bottom:0;">
+      <button type="button" class="btn btn-primary" id="admin-start-camera-btn">Start Camera</button>
+      <button type="button" class="btn btn-outline" id="admin-capture-save-btn">Capture And Save</button>
+    </div>
+    <p class="cell-subtext" style="margin-top:12px;">Use this to take a face photo directly from the browser and save it into the dataset folder. Keep only one face visible in the frame.</p>
+  </div>
+
+  <div class="card">
+    <strong style="font-size:15px; display:block; margin-bottom:16px;">Webcam Save Result</strong>
+    <div id="admin-camera-result" class="stack-item">
+      <strong>Waiting for capture</strong>
+      <p>Select a student, start the camera, and capture a photo to save it in the face dataset.</p>
+    </div>
+    <div class="stack-item" style="margin-top:12px;">
+      <strong>Suggested workflow</strong>
+      <p>Capture at least 20 clear photos per student from slightly different angles, keep only one face in each image, then click Train Model above.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">Attendance Timing Rules</strong>
+  <form method="POST" action="{{ url_for('update_attendance_rule') }}">
+    <div class="form-row marks-sheet-config">
+      <div class="form-group">
+        <label class="form-label">Class Start Time</label>
+        <input type="time" name="class_start_time" class="form-control" value="{{ attendance_rule.class_start_time }}" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Present Until (minutes)</label>
+        <input type="number" name="present_until_minutes" class="form-control" value="{{ attendance_rule.present_until_minutes }}" min="0" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Late Until (minutes)</label>
+        <input type="number" name="late_until_minutes" class="form-control" value="{{ attendance_rule.late_until_minutes }}" min="0" required />
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Attendance Rule</button>
+  </form>
+  <p class="cell-subtext" style="margin-top:12px;">
+    Example: start time 10:00, present until 10 minutes, late until 20 minutes, then mark Very Late after that.
+  </p>
+</div>
+
+<div class="card" style="margin-top:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">Stored Face Dataset</strong>
+  {% if dataset_summary %}
+    <div class="student-preview-list">
+      {% for item in dataset_summary %}
+      <div class="student-preview-item">
+        <strong>{{ item.student_name }}</strong>
+        <span class="cell-subtext">{{ item.image_count }} image(s) in dataset folder</span>
+        <span class="cell-subtext">Last upload: {{ item.last_uploaded or '-' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No student face images have been saved yet.</p>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-top:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:8px;">Preview And Delete Photos</strong>
+  <p class="cell-subtext" style="margin-bottom:16px;">
+    Each uploaded face photo appears here. Use the red <strong>Delete Photo</strong> button under the image you want to remove.
+  </p>
+  {% if dataset_images %}
+    <div class="face-gallery">
+      {% for item in dataset_images %}
+      <div class="face-gallery-item">
+        <img src="{{ url_for('face_admin_image', path=item.relative_path) }}" alt="{{ item.student_name }}" class="face-thumb" />
+        <strong>{{ item.student_name }}</strong>
+        <span class="cell-subtext">{{ item.file_name or 'image' }}</span>
+        <span class="cell-subtext">{{ item.created_at or '-' }}</span>
+        <form method="POST" action="{{ url_for('face_admin_delete') }}" onsubmit="return confirm('Delete this face image?');">
+          <input type="hidden" name="path" value="{{ item.relative_path }}" />
+          <button type="submit" class="btn btn-danger btn-sm" style="margin-top:10px; width:100%;">Delete Photo</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No uploaded face images available yet. Upload student photos first, then they will appear here with a delete button.</p>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-top:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">How To Use</strong>
+  <div class="stack-list">
+    <div class="stack-item">
+      <strong>1. Upload images</strong>
+      <p>Select a student and upload clear face images with only one visible face. The images are saved in a stable <code>dataset/student_ID/</code> folder so later name changes do not break training.</p>
+    </div>
+    <div class="stack-item">
+      <strong>2. Train model</strong>
+      <p>Select one student or all students, then click the training button to build the face encodings file from the saved dataset images.</p>
+    </div>
+    <div class="stack-item">
+      <strong>3. Recognize attendance</strong>
+      <p>Use the admin attendance scanner above to recognize a student face and mark attendance automatically.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const remoteCamera = {{ remote_camera | tojson }};
+  const adminVideo = document.getElementById('admin-camera-video');
+  const adminPreviewImage = document.getElementById('admin-camera-preview-image');
+  const adminCanvas = document.getElementById('admin-camera-canvas');
+  const adminStartBtn = document.getElementById('admin-start-camera-btn');
+  const adminCaptureBtn = document.getElementById('admin-capture-save-btn');
+  const adminStudentSelect = document.getElementById('camera-student-id');
+  const adminResultBox = document.getElementById('admin-camera-result');
+  const adminRecognitionVideo = document.getElementById('admin-recognition-video');
+  const adminRecognitionPreviewImage = document.getElementById('admin-recognition-preview-image');
+  const adminRecognitionCanvas = document.getElementById('admin-recognition-canvas');
+  const adminRecognitionStartBtn = document.getElementById('admin-start-recognition-btn');
+  const adminRecognitionBtn = document.getElementById('admin-recognize-btn');
+  const adminUploadInput = document.getElementById('admin-face-upload-input');
+  const adminUploadBtn = document.getElementById('admin-upload-face-btn');
+  const adminStatusCard = document.getElementById('admin-attendance-status-card');
+  const adminStatusIcon = document.getElementById('admin-attendance-status-icon');
+  const adminStatusLabel = document.getElementById('admin-attendance-status-label');
+  const adminStatusText = document.getElementById('admin-attendance-status-text');
+  const adminRecognitionValue = document.getElementById('admin-recognition-value');
+  const adminAttendanceValue = document.getElementById('admin-attendance-value');
+  const adminStudentValue = document.getElementById('admin-student-value');
+  const adminTimeValue = document.getElementById('admin-time-value');
+  const adminRecognitionResult = document.getElementById('admin-recognition-result');
+  let adminMediaStream = null;
+  let adminRecognitionStream = null;
+  let adminPreviewRefreshId = null;
+  let adminRecognitionPreviewRefreshId = null;
+
+  function updateAdminStatusCard(state, title, text) {
+    adminStatusCard.className = `attendance-status-card ${state}`;
+    adminStatusLabel.textContent = title;
+    adminStatusText.textContent = text;
+
+    if (state === 'success') {
+      adminStatusIcon.textContent = 'OK';
+    } else if (state === 'warning') {
+      adminStatusIcon.textContent = '!';
+    } else if (state === 'error') {
+      adminStatusIcon.textContent = 'X';
+    } else {
+      adminStatusIcon.textContent = '?';
+    }
+  }
+
+  function updateAdminRecognitionSummary(data) {
+    adminStudentValue.textContent = data.name || 'Unknown';
+    adminTimeValue.textContent = data.time || '-';
+
+    if (data.success && data.status === 'marked') {
+      adminRecognitionValue.textContent = 'Recognized';
+      adminAttendanceValue.textContent = `Marked ${data.attendance_status || 'Present'}`;
+      updateAdminStatusCard('success', 'Face Recognized', `Attendance marked as ${data.attendance_status || 'Present'}.`);
+      adminRecognitionResult.innerHTML = `<strong>Attendance Marked</strong><p>${data.message}</p>`;
+      return;
+    }
+
+    if (data.success && data.status === 'already_marked') {
+      adminRecognitionValue.textContent = 'Recognized';
+      adminAttendanceValue.textContent = `Already ${data.attendance_status || 'Marked'}`;
+      updateAdminStatusCard('warning', 'Already Marked', data.message);
+      adminRecognitionResult.innerHTML = `<strong>Already Marked</strong><p>${data.message}</p>`;
+      return;
+    }
+
+    adminRecognitionValue.textContent = 'Not recognized';
+    adminAttendanceValue.textContent = 'Not marked';
+    updateAdminStatusCard('error', 'Face Not Recognized', data.message || 'The system could not recognize the face.');
+    adminRecognitionResult.innerHTML = `<strong>Attendance Not Marked</strong><p>${data.message || 'Recognition failed.'}</p>`;
+  }
+
+  function setAdminCheckingState(message) {
+    updateAdminStatusCard('pending', 'Checking Face', message || 'Recognizing the student and verifying attendance now.');
+    adminRecognitionValue.textContent = 'Checking...';
+    adminAttendanceValue.textContent = 'Checking...';
+    adminStudentValue.textContent = 'Checking...';
+    adminTimeValue.textContent = '-';
+    adminRecognitionResult.innerHTML = '<strong>Processing</strong><p>Recognizing face and checking attendance...</p>';
+  }
+
+  async function sendAdminImageForRecognition(imageBlob, filename) {
+    const formData = new FormData();
+    formData.append('image', imageBlob, filename || 'capture.jpg');
+
+    try {
+      const response = await fetch('{{ url_for("recognize_attendance") }}', {
+        method: 'POST',
+        body: formData
+      });
+      const responseText = await response.text();
+      let data = null;
+
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        data = {
+          success: false,
+          status: 'server_error',
+          message: responseText || `Server returned HTTP ${response.status}.`
+        };
+      }
+
+      updateAdminRecognitionSummary(data);
+    } catch (error) {
+      updateAdminStatusCard('error', 'Request Failed', 'Could not send the image to the server.');
+      adminRecognitionValue.textContent = 'Failed';
+      adminAttendanceValue.textContent = 'Not marked';
+      adminStudentValue.textContent = 'Unknown';
+      adminTimeValue.textContent = '-';
+      adminRecognitionResult.innerHTML = `<strong>Request Failed</strong><p>Could not send the image to the server. ${error.message || ''}</p>`;
+    }
+  }
+
+  async function fetchRemoteCameraSnapshot(filename) {
+    const response = await fetch('{{ url_for("remote_camera_snapshot") }}', {
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      let data = null;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        data = { message: responseText || `Server returned HTTP ${response.status}.` };
+      }
+      throw new Error(data.message || 'Remote camera snapshot failed.');
+    }
+
+    const imageBlob = await response.blob();
+    return new File([imageBlob], filename || 'remote-camera.jpg', { type: imageBlob.type || 'image/jpeg' });
+  }
+
+  function stopPreviewRefresh(timerId) {
+    if (timerId) {
+      window.clearInterval(timerId);
+    }
+    return null;
+  }
+
+  function startPreviewRefresh(imageElement, currentTimerId) {
+    const nextTimerId = stopPreviewRefresh(currentTimerId);
+    const refreshPreview = function() {
+      imageElement.src = `{{ url_for("remote_camera_snapshot") }}?t=${Date.now()}`;
+    };
+    refreshPreview();
+    return window.setInterval(refreshPreview, 1500) || nextTimerId;
+  }
+
+  async function startAdminRecognitionCamera() {
+    if (remoteCamera.enabled) {
+      adminRecognitionVideo.pause();
+      adminRecognitionVideo.srcObject = null;
+      adminRecognitionPreviewImage.style.display = 'block';
+      adminRecognitionVideo.style.display = 'none';
+
+      if (remoteCamera.hasStream && remoteCamera.preview_url) {
+        adminRecognitionPreviewRefreshId = stopPreviewRefresh(adminRecognitionPreviewRefreshId);
+        adminRecognitionPreviewImage.src = `${remoteCamera.preview_url}${remoteCamera.preview_url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+      } else {
+        adminRecognitionPreviewRefreshId = startPreviewRefresh(adminRecognitionPreviewImage, adminRecognitionPreviewRefreshId);
+      }
+
+      updateAdminStatusCard('pending', 'Camera Ready', `${remoteCamera.name} is ready. Capture a student face to mark attendance.`);
+      adminRecognitionResult.innerHTML = `<strong>Camera Ready</strong><p>${remoteCamera.name} preview is active.</p>`;
+      return;
+    }
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        updateAdminStatusCard('error', 'Camera Unsupported', 'This browser does not support live camera access on this page.');
+        adminRecognitionResult.innerHTML = '<strong>Camera Unsupported</strong><p>Your browser does not support live camera access here. Use the upload option below.</p>';
+        return;
+      }
+
+      adminRecognitionStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      adminRecognitionVideo.srcObject = adminRecognitionStream;
+      updateAdminStatusCard('pending', 'Camera Ready', 'Your camera is ready. Capture a student face to mark attendance.');
+      adminRecognitionResult.innerHTML = '<strong>Camera Ready</strong><p>You can now scan a student face for attendance.</p>';
+    } catch (error) {
+      const errorName = error && error.name ? error.name : 'UnknownError';
+      const errorMessage = error && error.message ? error.message : 'Camera access failed.';
+      updateAdminStatusCard('error', `Camera Error: ${errorName}`, errorMessage);
+      adminRecognitionResult.innerHTML = `<strong>Camera Error</strong><p>${errorName}: ${errorMessage}</p>`;
+    }
+  }
+
+  async function captureAndRecognizeAsAdmin() {
+    if (remoteCamera.enabled) {
+      setAdminCheckingState(`Fetching a snapshot from ${remoteCamera.name}.`);
+
+      try {
+        const remoteImage = await fetchRemoteCameraSnapshot('admin-remote-recognition.jpg');
+        await sendAdminImageForRecognition(remoteImage, remoteImage.name);
+      } catch (error) {
+        updateAdminStatusCard('error', 'Remote Camera Error', error.message || 'Could not read the Raspberry Pi camera.');
+        adminRecognitionResult.innerHTML = `<strong>Remote Camera Error</strong><p>${error.message || 'Could not read the Raspberry Pi camera.'}</p>`;
+      }
+      return;
+    }
+
+    if (!adminRecognitionStream) {
+      updateAdminStatusCard('warning', 'Start Camera First', 'Please start the camera before trying to mark attendance.');
+      adminRecognitionResult.innerHTML = '<strong>Camera Not Started</strong><p>Please start the camera first.</p>';
+      return;
+    }
+
+    adminRecognitionCanvas.width = adminRecognitionVideo.videoWidth || 640;
+    adminRecognitionCanvas.height = adminRecognitionVideo.videoHeight || 480;
+    const context = adminRecognitionCanvas.getContext('2d');
+    context.drawImage(adminRecognitionVideo, 0, 0, adminRecognitionCanvas.width, adminRecognitionCanvas.height);
+
+    setAdminCheckingState('Recognizing the student face and verifying attendance now.');
+
+    adminRecognitionCanvas.toBlob(async function(blob) {
+      if (!blob) {
+        updateAdminStatusCard('error', 'Capture Failed', 'The camera image could not be captured.');
+        adminRecognitionResult.innerHTML = '<strong>Capture Failed</strong><p>Please try again.</p>';
+        return;
+      }
+
+      await sendAdminImageForRecognition(blob, 'admin-capture.jpg');
+    }, 'image/jpeg');
+  }
+
+  async function recognizeAdminUploadedPhoto() {
+    const file = adminUploadInput.files && adminUploadInput.files[0];
+    if (!file) {
+      updateAdminStatusCard('warning', 'Choose A Photo First', 'Please choose a student face photo before uploading.');
+      adminRecognitionResult.innerHTML = '<strong>No Photo Selected</strong><p>Please choose a clear student face image first.</p>';
+      return;
+    }
+
+    setAdminCheckingState('Uploading photo and checking face recognition.');
+    await sendAdminImageForRecognition(file, file.name || 'upload.jpg');
+  }
+
+  async function startAdminCamera() {
+    if (remoteCamera.enabled) {
+      adminVideo.pause();
+      adminVideo.srcObject = null;
+      adminPreviewImage.style.display = 'block';
+      adminVideo.style.display = 'none';
+
+      if (remoteCamera.hasStream && remoteCamera.preview_url) {
+        adminPreviewRefreshId = stopPreviewRefresh(adminPreviewRefreshId);
+        adminPreviewImage.src = `${remoteCamera.preview_url}${remoteCamera.preview_url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+      } else {
+        adminPreviewRefreshId = startPreviewRefresh(adminPreviewImage, adminPreviewRefreshId);
+      }
+
+      adminResultBox.innerHTML = `<strong>Camera ready</strong><p>${remoteCamera.name} is ready. You can now capture and save student photos from the Raspberry Pi camera.</p>`;
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      adminResultBox.innerHTML = '<strong>Camera unsupported</strong><p>Your browser does not support webcam access.</p>';
+      return;
+    }
+
+    try {
+      adminMediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      adminVideo.srcObject = adminMediaStream;
+      adminResultBox.innerHTML = '<strong>Camera ready</strong><p>You can now capture and save webcam photos for the selected student.</p>';
+    } catch (error) {
+      adminResultBox.innerHTML = '<strong>Camera error</strong><p>Could not access the webcam. Please allow camera permission in the browser.</p>';
+    }
+  }
+
+  async function captureAndSaveAdminPhoto() {
+    if (!adminStudentSelect.value) {
+      adminResultBox.innerHTML = '<strong>Select a student</strong><p>Please choose a student before saving a webcam image.</p>';
+      return;
+    }
+
+    if (remoteCamera.enabled) {
+      adminResultBox.innerHTML = `<strong>Saving photo</strong><p>Fetching a snapshot from ${remoteCamera.name} and sending it to the server.</p>`;
+
+      try {
+        const remoteImage = await fetchRemoteCameraSnapshot('admin-remote-capture.jpg');
+        const formData = new FormData();
+        formData.append('student_id', adminStudentSelect.value);
+        formData.append('image', remoteImage, remoteImage.name);
+
+        const response = await fetch('{{ url_for("face_admin_capture") }}', {
+          method: 'POST',
+          body: formData
+        });
+        const responseText = await response.text();
+        let data = null;
+
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          data = {
+            success: false,
+            message: responseText || `Server returned HTTP ${response.status}.`
+          };
+        }
+
+        if (response.ok && data.success) {
+          adminResultBox.innerHTML = `<strong>Saved for ${data.student_name}</strong><p>${data.message}</p><p class="cell-subtext">${data.file_name}</p><p class="cell-subtext">Refreshing dataset view...</p>`;
+          setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+          adminResultBox.innerHTML = `<strong>Save failed</strong><p>${data.message || `Server returned HTTP ${response.status}.`}</p>`;
+        }
+      } catch (error) {
+        adminResultBox.innerHTML = `<strong>Remote camera error</strong><p>${error.message || 'Could not read the Raspberry Pi camera.'}</p>`;
+      }
+      return;
+    }
+
+    if (!adminMediaStream) {
+      adminResultBox.innerHTML = '<strong>Camera not started</strong><p>Please start the camera first.</p>';
+      return;
+    }
+
+    adminCanvas.width = adminVideo.videoWidth || 640;
+    adminCanvas.height = adminVideo.videoHeight || 480;
+    const context = adminCanvas.getContext('2d');
+    context.drawImage(adminVideo, 0, 0, adminCanvas.width, adminCanvas.height);
+
+    adminResultBox.innerHTML = '<strong>Saving photo</strong><p>Sending the webcam capture to the server.</p>';
+
+    adminCanvas.toBlob(async function(blob) {
+      if (!blob) {
+        adminResultBox.innerHTML = '<strong>Capture failed</strong><p>The browser could not create an image from the webcam frame.</p>';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('student_id', adminStudentSelect.value);
+      formData.append('image', blob, 'webcam_capture.jpg');
+
+      try {
+        const response = await fetch('{{ url_for("face_admin_capture") }}', {
+          method: 'POST',
+          body: formData
+        });
+        const responseText = await response.text();
+        let data = null;
+
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          data = {
+            success: false,
+            message: responseText || `Server returned HTTP ${response.status}.`
+          };
+        }
+
+        if (response.ok && data.success) {
+          adminResultBox.innerHTML = `<strong>Saved for ${data.student_name}</strong><p>${data.message}</p><p class="cell-subtext">${data.file_name}</p><p class="cell-subtext">Refreshing dataset view...</p>`;
+          setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+          adminResultBox.innerHTML = `<strong>Save failed</strong><p>${data.message || `Server returned HTTP ${response.status}.`}</p>`;
+        }
+      } catch (error) {
+        adminResultBox.innerHTML = `<strong>Request failed</strong><p>Could not send the webcam image to the server. ${error.message || ''}</p>`;
+      }
+    }, 'image/jpeg', 0.92);
+  }
+
+  adminStartBtn.addEventListener('click', startAdminCamera);
+  adminCaptureBtn.addEventListener('click', captureAndSaveAdminPhoto);
+  adminRecognitionStartBtn.addEventListener('click', startAdminRecognitionCamera);
+  adminRecognitionBtn.addEventListener('click', captureAndRecognizeAsAdmin);
+  adminUploadBtn.addEventListener('click', recognizeAdminUploadedPhoto);
+  window.addEventListener('beforeunload', function() {
+    adminPreviewRefreshId = stopPreviewRefresh(adminPreviewRefreshId);
+    adminRecognitionPreviewRefreshId = stopPreviewRefresh(adminRecognitionPreviewRefreshId);
+  });
+</script>
+
+{% endblock %}

@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block title %}Mark Attendance - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Attendance</h1>
+  <p>Mark and view student attendance</p>
+</div>
+
+<div class="card" style="margin-bottom:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:20px;">Mark Attendance</strong>
+  <form method="POST" action="{{ url_for('mark_attendance') }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Grade</label>
+        <select id="attendance-grade-select" class="form-control" required>
+          <option value="">Select grade</option>
+          {% for grade in range(1, 13) %}
+            <option value="{{ grade }}">Grade {{ grade }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Student</label>
+        <select name="student_id" id="attendance-student-select" class="form-control" required disabled>
+          <option value="">Select student</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" name="date" class="form-control" value="{{ today }}" required />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Time</label>
+      <input type="time" name="time" class="form-control" value="{{ current_time }}" required />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select name="status" class="form-control" required>
+        <option value="Present">Present</option>
+        <option value="Absent">Absent</option>
+        <option value="Late">Late</option>
+        <option value="Very Late">Very Late</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Mark Attendance</button>
+  </form>
+  <form method="POST" action="{{ url_for('mark_absent_students') }}" style="margin-top:12px;">
+    <input type="hidden" name="date" value="{{ today }}" />
+    <button type="submit" class="btn btn-outline">Mark Remaining Students Absent For {{ today }}</button>
+  </form>
+  <p class="cell-subtext" style="margin-top:10px;">
+    Use this after face recognition and manual marking are finished to fill in absent students automatically.
+  </p>
+</div>
+
+<div class="card">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">All Attendance Records</strong>
+  <div class="form-row" style="margin-bottom:16px;">
+    <div class="form-group" style="max-width:320px;">
+      <label class="form-label">Grade</label>
+      <select id="attendance-record-grade-select" class="form-control">
+        <option value="">Select grade</option>
+        {% for grade in range(1, 13) %}
+          <option value="{{ grade }}">Grade {{ grade }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="max-width:320px;">
+      <label class="form-label">Student</label>
+      <select id="attendance-record-student-select" class="form-control" disabled>
+        <option value="">Select student</option>
+      </select>
+    </div>
+    <div class="form-group" style="display:flex; align-items:flex-end;">
+      <a href="{{ url_for('download_attendance_records_report') }}" id="attendance-report-download-btn" class="btn btn-outline">Download CSV</a>
+    </div>
+  </div>
+  {% if records %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Student</th><th>Grade</th><th>Date</th><th>Time</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for r in records %}
+        <tr data-record-grade="{{ r.year or '' }}" data-record-student-id="{{ r.student_id or '' }}">
+          <td>{{ r.student_name }}</td>
+          <td>Grade {{ r.year or '-' }}</td>
+          <td>{{ r.date }}</td>
+          <td>{{ r.time or '-' }}</td>
+          <td>
+            <span class="badge {% if r.status == 'Present' %}badge-success{% elif r.status in ['Late', 'Very Late'] %}badge-warning{% else %}badge-danger{% endif %}">
+              {{ r.status }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No records yet. Start marking attendance above.</p>
+  {% endif %}
+  <p id="attendance-record-empty" style="color:var(--muted); font-size:14px; display:none;">No attendance records found for the selected grade.</p>
+</div>
+
+<script>
+  const attendanceStudents = {{ students | tojson }};
+  const attendanceGradeSelect = document.getElementById('attendance-grade-select');
+  const attendanceStudentSelect = document.getElementById('attendance-student-select');
+  const attendanceRecordGradeSelect = document.getElementById('attendance-record-grade-select');
+  const attendanceRecordStudentSelect = document.getElementById('attendance-record-student-select');
+  const attendanceRecordRows = Array.from(document.querySelectorAll('tr[data-record-grade]'));
+  const attendanceRecordEmpty = document.getElementById('attendance-record-empty');
+  const attendanceReportDownloadBtn = document.getElementById('attendance-report-download-btn');
+
+  function renderAttendanceStudents() {
+    const selectedGrade = attendanceGradeSelect.value;
+    attendanceStudentSelect.innerHTML = '<option value="">Select student</option>';
+
+    if (!selectedGrade) {
+      attendanceStudentSelect.disabled = true;
+      return;
+    }
+
+    const filteredStudents = attendanceStudents
+      .filter(student => String(student.year) === String(selectedGrade))
+      .sort((left, right) => left.name.localeCompare(right.name));
+
+    for (const student of filteredStudents) {
+      const option = document.createElement('option');
+      option.value = student.id;
+      option.textContent = student.course
+        ? `${student.name} - ${student.course}`
+        : student.name;
+      attendanceStudentSelect.appendChild(option);
+    }
+
+    if (!filteredStudents.length) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No students in this grade';
+      attendanceStudentSelect.appendChild(option);
+    }
+
+    attendanceStudentSelect.disabled = false;
+  }
+
+  attendanceGradeSelect.addEventListener('change', renderAttendanceStudents);
+  renderAttendanceStudents();
+
+  function renderAttendanceRecordStudents() {
+    if (!attendanceRecordGradeSelect || !attendanceRecordStudentSelect) {
+      return;
+    }
+
+    const selectedGrade = attendanceRecordGradeSelect.value;
+    attendanceRecordStudentSelect.innerHTML = '<option value="">Select student</option>';
+
+    if (!selectedGrade) {
+      attendanceRecordStudentSelect.disabled = true;
+      return;
+    }
+
+    const filteredStudents = attendanceStudents
+      .filter(student => String(student.year) === String(selectedGrade))
+      .sort((left, right) => left.name.localeCompare(right.name));
+
+    for (const student of filteredStudents) {
+      const option = document.createElement('option');
+      option.value = student.id;
+      option.textContent = student.course
+        ? `${student.name} - ${student.course}`
+        : student.name;
+      attendanceRecordStudentSelect.appendChild(option);
+    }
+
+    if (!filteredStudents.length) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No students in this grade';
+      attendanceRecordStudentSelect.appendChild(option);
+    }
+
+    attendanceRecordStudentSelect.disabled = false;
+  }
+
+  function updateAttendanceDownloadLink() {
+    if (!attendanceReportDownloadBtn) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (attendanceRecordGradeSelect && attendanceRecordGradeSelect.value) {
+      params.set('grade', attendanceRecordGradeSelect.value);
+    }
+    if (attendanceRecordStudentSelect && attendanceRecordStudentSelect.value) {
+      params.set('student_id', attendanceRecordStudentSelect.value);
+    }
+
+    const baseUrl = "{{ url_for('download_attendance_records_report') }}";
+    attendanceReportDownloadBtn.href = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+  }
+
+  function renderAttendanceRecordsByFilter() {
+    if (!attendanceRecordGradeSelect) {
+      return;
+    }
+
+    const selectedGrade = attendanceRecordGradeSelect.value;
+    const selectedStudent = attendanceRecordStudentSelect ? attendanceRecordStudentSelect.value : '';
+    let visibleCount = 0;
+
+    attendanceRecordRows.forEach(row => {
+      const rowGrade = row.getAttribute('data-record-grade');
+      const rowStudentId = row.getAttribute('data-record-student-id');
+      const showRow = (!selectedGrade || rowGrade === selectedGrade) && (!selectedStudent || rowStudentId === selectedStudent);
+      row.style.display = showRow ? '' : 'none';
+      if (showRow) {
+        visibleCount += 1;
+      }
+    });
+
+    if (attendanceRecordEmpty) {
+      attendanceRecordEmpty.style.display = (selectedGrade || selectedStudent) && visibleCount === 0 ? '' : 'none';
+    }
+
+    updateAttendanceDownloadLink();
+  }
+
+  if (attendanceRecordGradeSelect) {
+    attendanceRecordGradeSelect.addEventListener('change', function() {
+      renderAttendanceRecordStudents();
+      renderAttendanceRecordsByFilter();
+    });
+    if (attendanceRecordStudentSelect) {
+      attendanceRecordStudentSelect.addEventListener('change', renderAttendanceRecordsByFilter);
+    }
+    renderAttendanceRecordStudents();
+    renderAttendanceRecordsByFilter();
+  }
+</script>
+
+{% endblock %}

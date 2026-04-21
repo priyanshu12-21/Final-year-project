@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}My Marks - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>My Marks</h1>
+  <p>View your academic performance and predicted trend</p>
+</div>
+
+<div class="page-actions no-print">
+  <button type="button" class="btn btn-outline" onclick="window.print()">Print Marks</button>
+  <a href="{{ url_for('download_marks_report') }}" class="btn btn-primary">Download Marks CSV</a>
+</div>
+
+{% if records %}
+  {% set total_pct = [] %}
+  {% for m in records %}
+    {% set _ = total_pct.append((m.marks_obtained / m.total_marks * 100) | int) %}
+  {% endfor %}
+
+  <div class="stat-grid" style="margin-bottom:24px;">
+    <div class="stat-card accent">
+      <div class="stat-label">Subjects</div>
+      <div class="stat-value">{{ records | map(attribute='subject') | list | unique | list | length }}</div>
+    </div>
+    <div class="stat-card success">
+      <div class="stat-label">Exams Taken</div>
+      <div class="stat-value">{{ records | length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Average Score</div>
+      <div class="stat-value">
+        {% if total_pct %}{{ (total_pct | sum / total_pct | length) | int }}%{% else %}-{% endif %}
+      </div>
+    </div>
+    <div class="stat-card warning">
+      <div class="stat-label">Predicted Next Score</div>
+      <div class="stat-value">
+        {% if analytics.overall_prediction is not none %}{{ analytics.overall_prediction | round(0) | int }}%{% else %}-{% endif %}
+      </div>
+      <div class="stat-sub">{{ analytics.trend_label }}</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap;">
+      <div>
+        <strong style="font-size:15px; display:block;">Performance Trend</strong>
+        <span style="font-size:13px; color:var(--muted);">Prediction is based only on your previous marks.</span>
+      </div>
+      <span class="badge {% if analytics.trend_label == 'Improving' %}badge-success{% elif analytics.trend_label == 'Needs attention' %}badge-danger{% else %}badge-info{% endif %}">
+        {{ analytics.trend_label }}
+      </span>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <svg viewBox="0 0 760 240" style="width:100%; min-width:680px; height:auto; display:block;">
+        {% for tick in analytics.y_axis %}
+          {% set y = 16 + ((100 - tick) / 100) * 190 %}
+          <line x1="44" y1="{{ y }}" x2="736" y2="{{ y }}" stroke="#e2e0d8" stroke-width="1" />
+          <text x="8" y="{{ y + 4 }}" font-size="11" fill="#6b6b6b">{{ tick }}%</text>
+        {% endfor %}
+
+        {% for line in analytics.chart_lines %}
+          <line x1="{{ line.x1 }}" y1="{{ line.y1 }}" x2="{{ line.x2 }}" y2="{{ line.y2 }}" stroke="#2563eb" stroke-width="3" stroke-linecap="round" />
+        {% endfor %}
+
+        {% if analytics.forecast_line %}
+          <line x1="{{ analytics.forecast_line.x1 }}" y1="{{ analytics.forecast_line.y1 }}" x2="{{ analytics.forecast_line.x2 }}" y2="{{ analytics.forecast_line.y2 }}" stroke="#d97706" stroke-width="3" stroke-dasharray="6 6" stroke-linecap="round" />
+          <circle cx="{{ analytics.forecast_line.x2 }}" cy="{{ analytics.forecast_line.y2 }}" r="5" fill="#d97706" />
+          <text x="{{ analytics.forecast_line.x2 - 22 }}" y="{{ analytics.forecast_line.y2 - 10 }}" font-size="11" fill="#d97706">Next</text>
+        {% endif %}
+
+        {% for point in analytics.chart_points %}
+          <circle cx="{{ point.x }}" cy="{{ point.y }}" r="5" fill="#2563eb" />
+          <text x="{{ point.x - 10 }}" y="{{ point.y - 10 }}" font-size="11" fill="#1a1a1a">{{ point.percentage | round(0) | int }}%</text>
+          <text x="{{ point.x - 4 }}" y="224" font-size="11" fill="#6b6b6b">{{ point.short_label }}</text>
+        {% endfor %}
+      </svg>
+    </div>
+
+    <div style="display:flex; gap:18px; flex-wrap:wrap; margin-top:14px; font-size:13px; color:var(--muted);">
+      <span><strong style="color:var(--text);">Blue line:</strong> previous scores</span>
+      <span><strong style="color:var(--text);">Dashed line:</strong> predicted next score</span>
+      <span><strong style="color:var(--text);">Chart keys:</strong> 1 to {{ analytics.chart_points | length }} show exam order</span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:24px;">
+    <strong style="font-size:15px; display:block; margin-bottom:16px;">Subject-wise Prediction</strong>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Subject</th><th>Exams</th><th>Average</th><th>Predicted Next</th><th>Trend</th></tr></thead>
+        <tbody>
+          {% for item in analytics.subject_predictions %}
+          <tr>
+            <td><strong>{{ item.subject }}</strong></td>
+            <td>{{ item.exam_count }}</td>
+            <td>{{ item.average | round(0) | int }}%</td>
+            <td>{% if item.predicted is not none %}{{ item.predicted | round(0) | int }}%{% else %}-{% endif %}</td>
+            <td>
+              <span class="badge {% if item.trend == 'Upward' %}badge-success{% elif item.trend == 'Downward' %}badge-danger{% else %}badge-info{% endif %}">
+                {{ item.trend }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">All Marks</strong>
+  {% if records %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Subject</th><th>Exam Type</th><th>Marks</th><th>Percentage</th><th>Grade</th></tr></thead>
+      <tbody>
+        {% for m in records %}
+          {% set pct = ((m.marks_obtained / m.total_marks) * 100) | int %}
+          <tr>
+            <td><strong>{{ m.subject }}</strong></td>
+            <td>{{ m.exam_type or '-' }}</td>
+            <td>{{ m.marks_obtained }} / {{ m.total_marks }}</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="progress" style="flex:1; max-width:80px;">
+                  <div class="progress-bar {% if pct >= 75 %}success{% elif pct < 50 %}danger{% endif %}" style="width:{{ pct }}%"></div>
+                </div>
+                {{ pct }}%
+              </div>
+            </td>
+            <td>
+              <span class="badge {% if pct >= 90 %}badge-success{% elif pct >= 75 %}badge-info{% elif pct >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+                {% if pct >= 90 %}A+{% elif pct >= 80 %}A{% elif pct >= 70 %}B{% elif pct >= 60 %}C{% elif pct >= 50 %}D{% else %}F{% endif %}
+              </span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No marks recorded yet.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

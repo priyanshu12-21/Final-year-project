@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% block title %}Face Recognition - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Teacher Face Attendance</h1>
+  <p>Teachers can recognize a student face and automatically mark attendance for students assigned to their class.</p>
+</div>
+
+{% if not face_runtime_status.available %}
+<div class="card" style="margin-bottom:20px; border-color:#f59e0b; background:#fff7ed;">
+  <strong style="display:block; margin-bottom:8px;">Face recognition dependency missing</strong>
+  <p style="margin:0;">{{ face_runtime_status.message }}</p>
+</div>
+{% endif %}
+
+<div class="face-attendance-layout">
+  <div class="card face-attendance-main">
+    <div class="face-attendance-header">
+      <div>
+        <strong>Teacher Attendance Scan</strong>
+        <p>When the face matches a student in the trained dataset, attendance is marked automatically.</p>
+      </div>
+      <span class="badge badge-info">Teacher only</span>
+    </div>
+
+    <div class="stack-item" style="margin-bottom:18px;">
+      <strong>Your class assignment</strong>
+      <p>
+        {% if teacher_year and teacher_course %}
+          You are marking attendance for <strong>Grade {{ teacher_year }} - {{ teacher_course }}</strong>.
+          {% if teacher_subject %}
+            Your subject is <strong>{{ teacher_subject }}</strong>, but face attendance on this page is limited to your assigned class.
+          {% endif %}
+        {% else %}
+          No class is assigned to your teacher account yet. Ask the admin to set your grade and section before using face attendance.
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="camera-frame face-attendance-camera">
+      <video id="camera-video" autoplay playsinline></video>
+      <img
+        id="camera-preview-image"
+        alt="{{ remote_camera.name if remote_camera.enabled else 'Remote camera preview' }}"
+        style="display:none; width:100%; height:100%; object-fit:cover;"
+      />
+      <canvas id="camera-canvas" style="display:none;"></canvas>
+    </div>
+
+    {% if remote_camera.enabled %}
+    <div class="stack-item" style="margin-top:16px; margin-bottom:0;">
+      <strong>Remote camera active</strong>
+      <p>This page can use <strong>{{ remote_camera.name }}</strong> instead of the browser webcam. The Start Camera button will open the Raspberry Pi preview.</p>
+    </div>
+    {% endif %}
+
+    <div class="face-attendance-hints">
+      <div class="face-attendance-hint">
+        <strong>1. Start camera</strong>
+        <p>{% if remote_camera.enabled %}Load the Raspberry Pi camera preview.{% else %}Allow browser camera permission when asked.{% endif %}</p>
+      </div>
+      <div class="face-attendance-hint">
+        <strong>2. Keep one student face visible</strong>
+        <p>Make sure only one student face appears in the frame.</p>
+      </div>
+      <div class="face-attendance-hint">
+        <strong>3. Mark attendance</strong>
+        <p>The system recognizes the student from trained photos and marks attendance automatically.</p>
+      </div>
+    </div>
+
+    <div class="page-actions" style="margin-top:20px; margin-bottom:0;">
+      <button type="button" class="btn btn-primary" id="start-camera-btn">Start Camera</button>
+      <button type="button" class="btn btn-success" id="capture-btn">Recognize And Mark Attendance</button>
+      <a href="{{ url_for('attendance') }}" class="btn btn-outline">View Attendance Records</a>
+    </div>
+
+    <div class="face-upload-panel">
+      <strong>Camera not working?</strong>
+      <p>Upload a clear student face photo and the system will try to recognize that student and mark attendance from the image.</p>
+      <div class="page-actions" style="margin-top:12px; margin-bottom:0;">
+        <input type="file" id="face-upload-input" accept="image/*" class="form-control face-upload-input">
+        <button type="button" class="btn btn-outline" id="upload-face-btn">Use Uploaded Photo</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card face-attendance-side">
+    <strong style="font-size:15px; display:block; margin-bottom:16px;">Recognition Status</strong>
+
+    <div id="attendance-status-card" class="attendance-status-card pending">
+      <div class="attendance-status-icon" id="attendance-status-icon">?</div>
+      <div>
+        <div class="attendance-status-label" id="attendance-status-label">Waiting For Scan</div>
+        <p class="attendance-status-text" id="attendance-status-text">Start the camera and capture a student face to mark attendance.</p>
+      </div>
+    </div>
+
+    <div class="face-result-grid">
+      <div class="face-result-item">
+        <span class="face-result-label">Face Recognition</span>
+        <strong id="recognition-value">Not checked yet</strong>
+      </div>
+      <div class="face-result-item">
+        <span class="face-result-label">Attendance</span>
+        <strong id="attendance-value">Not marked</strong>
+      </div>
+      <div class="face-result-item">
+        <span class="face-result-label">Student</span>
+        <strong id="student-value">Waiting</strong>
+      </div>
+      <div class="face-result-item">
+        <span class="face-result-label">Marked Time</span>
+        <strong id="time-value">-</strong>
+      </div>
+    </div>
+
+    <div id="camera-result" class="stack-item face-result-message">
+      <strong>Ready</strong>
+      <p>When a student face is recognized, this page shows whether attendance was marked or denied.</p>
+    </div>
+
+    <div class="stack-item" style="margin-top:12px;">
+      <strong>Allowed Students</strong>
+      {% if allowed_students_count %}
+        <p>{{ allowed_students_count }} student(s) are available for your subject.</p>
+        <div class="face-student-groups">
+          {% for group in allowed_student_groups %}
+            <div class="face-student-group">
+              <strong>{{ group.label }}</strong>
+              <p>{{ group.students | map(attribute='name') | join(', ') }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p>No students are currently linked to your subject.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  const remoteCamera = {{ remote_camera | tojson }};
+  const video = document.getElementById('camera-video');
+  const previewImage = document.getElementById('camera-preview-image');
+  const canvas = document.getElementById('camera-canvas');
+  const startBtn = document.getElementById('start-camera-btn');
+  const captureBtn = document.getElementById('capture-btn');
+  const resultBox = document.getElementById('camera-result');
+  const uploadInput = document.getElementById('face-upload-input');
+  const uploadBtn = document.getElementById('upload-face-btn');
+  const statusCard = document.getElementById('attendance-status-card');
+  const statusIcon = document.getElementById('attendance-status-icon');
+  const statusLabel = document.getElementById('attendance-status-label');
+  const statusText = document.getElementById('attendance-status-text');
+  const recognitionValue = document.getElementById('recognition-value');
+  const attendanceValue = document.getElementById('attendance-value');
+  const studentValue = document.getElementById('student-value');
+  const timeValue = document.getElementById('time-value');
+  let mediaStream = null;
+  let remotePreviewRefreshId = null;
+
+  function setCheckingState(message) {
+    updateStatusCard('pending', 'Checking Face', message || 'Recognizing your face and verifying attendance now.');
+    recognitionValue.textContent = 'Checking...';
+    attendanceValue.textContent = 'Checking...';
+    studentValue.textContent = 'Checking...';
+    timeValue.textContent = '-';
+    resultBox.innerHTML = '<strong>Processing</strong><p>Recognizing face and checking attendance...</p>';
+  }
+
+  async function sendImageForRecognition(imageBlob, filename) {
+    const formData = new FormData();
+    formData.append('image', imageBlob, filename || 'capture.jpg');
+
+    try {
+      const response = await fetch('{{ url_for("recognize_attendance") }}', {
+        method: 'POST',
+        body: formData
+      });
+      const responseText = await response.text();
+      let data = null;
+
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        data = {
+          success: false,
+          status: 'server_error',
+          message: responseText || `Server returned HTTP ${response.status}.`
+        };
+      }
+
+      updateResultSummary(data);
+    } catch (error) {
+      updateStatusCard('error', 'Request Failed', 'Could not send the image to the server.');
+      recognitionValue.textContent = 'Failed';
+      attendanceValue.textContent = 'Not marked';
+      studentValue.textContent = 'Unknown';
+      timeValue.textContent = '-';
+      resultBox.innerHTML = `<strong>Request Failed</strong><p>Could not send the image to the server. ${error.message || ''}</p>`;
+    }
+  }
+
+  async function fetchRemoteCameraSnapshot(filename) {
+    const response = await fetch('{{ url_for("remote_camera_snapshot") }}', {
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      let data = null;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        data = { message: responseText || `Server returned HTTP ${response.status}.` };
+      }
+      throw new Error(data.message || 'Remote camera snapshot failed.');
+    }
+
+    const imageBlob = await response.blob();
+    return new File([imageBlob], filename || 'remote-camera.jpg', { type: imageBlob.type || 'image/jpeg' });
+  }
+
+  function stopRemotePreviewRefresh() {
+    if (remotePreviewRefreshId) {
+      window.clearInterval(remotePreviewRefreshId);
+      remotePreviewRefreshId = null;
+    }
+  }
+
+  function startRemotePreviewRefresh() {
+    stopRemotePreviewRefresh();
+    const refreshPreview = function() {
+      previewImage.src = `{{ url_for("remote_camera_snapshot") }}?t=${Date.now()}`;
+    };
+    refreshPreview();
+    remotePreviewRefreshId = window.setInterval(refreshPreview, 1500);
+  }
+
+  function updateStatusCard(state, title, text) {
+    statusCard.className = `attendance-status-card ${state}`;
+    statusLabel.textContent = title;
+    statusText.textContent = text;
+
+    if (state === 'success') {
+      statusIcon.textContent = 'OK';
+    } else if (state === 'warning') {
+      statusIcon.textContent = '!';
+    } else if (state === 'error') {
+      statusIcon.textContent = 'X';
+    } else {
+      statusIcon.textContent = '?';
+    }
+  }
+
+  function updateResultSummary(data) {
+    studentValue.textContent = data.name || 'Unknown';
+    timeValue.textContent = data.time || '-';
+
+    if (data.success && data.status === 'marked') {
+      recognitionValue.textContent = 'Recognized';
+      attendanceValue.textContent = `Marked ${data.attendance_status || 'Present'}`;
+      updateStatusCard('success', 'Face Recognized', `Attendance marked as ${data.attendance_status || 'Present'}.`);
+      resultBox.innerHTML = `<strong>Attendance Marked</strong><p>${data.message}</p>`;
+      return;
+    }
+
+    if (data.success && data.status === 'already_marked') {
+      recognitionValue.textContent = 'Recognized';
+      attendanceValue.textContent = `Already ${data.attendance_status || 'Marked'}`;
+      updateStatusCard('warning', 'Already Marked', data.message);
+      resultBox.innerHTML = `<strong>Already Marked</strong><p>${data.message}</p>`;
+      return;
+    }
+
+    recognitionValue.textContent = 'Not recognized';
+    attendanceValue.textContent = 'Not marked';
+    if (data.status === 'class_assignment_missing') {
+      updateStatusCard('error', 'Class Missing', data.message);
+    } else if (data.status === 'class_access_denied') {
+      updateStatusCard('error', 'Class Access Denied', data.message);
+    } else if (data.status === 'access_denied') {
+      updateStatusCard('error', 'Face Does Not Match', data.message);
+    } else {
+      updateStatusCard('error', 'Face Not Recognized', data.message || 'The system could not recognize the face.');
+    }
+    resultBox.innerHTML = `<strong>Attendance Not Marked</strong><p>${data.message || 'Recognition failed.'}</p>`;
+  }
+
+  async function startCamera() {
+    if (remoteCamera.enabled) {
+      video.pause();
+      video.srcObject = null;
+      previewImage.style.display = 'block';
+      video.style.display = 'none';
+
+      if (remoteCamera.hasStream && remoteCamera.preview_url) {
+        stopRemotePreviewRefresh();
+        previewImage.src = `${remoteCamera.preview_url}${remoteCamera.preview_url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+      } else {
+        startRemotePreviewRefresh();
+      }
+
+      updateStatusCard('pending', 'Camera Ready', `${remoteCamera.name} is ready. Capture a student face to mark attendance.`);
+      resultBox.innerHTML = `<strong>Camera Ready</strong><p>${remoteCamera.name} preview is active.</p>`;
+      return;
+    }
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        updateStatusCard('error', 'Camera Unsupported', 'This browser does not support live camera access on this page.');
+        resultBox.innerHTML = '<strong>Camera Unsupported</strong><p>Your browser does not support live camera access here. Use the upload option below.</p>';
+        return;
+      }
+
+      mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      video.srcObject = mediaStream;
+      updateStatusCard('pending', 'Camera Ready', 'Your camera is ready. Capture a student face to mark attendance.');
+      resultBox.innerHTML = '<strong>Camera Ready</strong><p>You can now scan a student face for attendance.</p>';
+    } catch (error) {
+      const errorName = error && error.name ? error.name : 'UnknownError';
+      const errorMessage = error && error.message ? error.message : 'Camera access failed.';
+      updateStatusCard('error', `Camera Error: ${errorName}`, errorMessage);
+      resultBox.innerHTML = `<strong>Camera Error</strong><p>${errorName}: ${errorMessage}</p><p class="cell-subtext">If live camera keeps failing, use the upload option below.</p>`;
+    }
+  }
+
+  async function captureAndRecognize() {
+    if (remoteCamera.enabled) {
+      setCheckingState(`Fetching a snapshot from ${remoteCamera.name}.`);
+
+      try {
+        const remoteImage = await fetchRemoteCameraSnapshot('remote-recognition.jpg');
+        await sendImageForRecognition(remoteImage, remoteImage.name);
+      } catch (error) {
+        updateStatusCard('error', 'Remote Camera Error', error.message || 'Could not read the Raspberry Pi camera.');
+        resultBox.innerHTML = `<strong>Remote Camera Error</strong><p>${error.message || 'Could not read the Raspberry Pi camera.'}</p>`;
+      }
+      return;
+    }
+
+    if (!mediaStream) {
+      updateStatusCard('warning', 'Start Camera First', 'Please start the camera before trying to mark attendance.');
+      resultBox.innerHTML = '<strong>Camera Not Started</strong><p>Please start the camera first.</p>';
+      return;
+    }
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    setCheckingState('Recognizing the student face and verifying attendance now.');
+
+    canvas.toBlob(async function(blob) {
+      if (!blob) {
+        updateStatusCard('error', 'Capture Failed', 'The camera image could not be captured.');
+        resultBox.innerHTML = '<strong>Capture Failed</strong><p>Please try again.</p>';
+        return;
+      }
+
+      await sendImageForRecognition(blob, 'capture.jpg');
+    }, 'image/jpeg');
+  }
+
+  async function recognizeUploadedPhoto() {
+    const file = uploadInput.files && uploadInput.files[0];
+    if (!file) {
+      updateStatusCard('warning', 'Choose A Photo First', 'Please choose a student face photo before uploading.');
+      resultBox.innerHTML = '<strong>No Photo Selected</strong><p>Please choose a clear student face image first.</p>';
+      return;
+    }
+
+    setCheckingState('Uploading photo and checking face recognition.');
+    await sendImageForRecognition(file, file.name || 'upload.jpg');
+  }
+
+  startBtn.addEventListener('click', startCamera);
+  captureBtn.addEventListener('click', captureAndRecognize);
+  uploadBtn.addEventListener('click', recognizeUploadedPhoto);
+  window.addEventListener('beforeunload', stopRemotePreviewRefresh);
+</script>
+
+{% endblock %}

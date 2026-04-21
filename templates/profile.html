@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Profile — EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>My Profile</h1>
+  <p>Your account details</p>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 2fr; gap:24px; align-items:start;">
+
+  <!-- Avatar card -->
+  <div class="card" style="text-align:center;">
+    <div class="avatar {% if session.role == 'teacher' %}teacher{% elif session.role == 'admin' %}admin{% endif %}"
+         style="width:80px;height:80px;font-size:32px;margin:0 auto 16px;">
+      {{ user.name[0].upper() }}
+    </div>
+    <div style="font-size:18px; font-weight:500; margin-bottom:4px;">{{ user.name }}</div>
+    <div style="font-size:13px; color:var(--muted); margin-bottom:16px;">{{ session.role | capitalize }}</div>
+    <span class="badge badge-info">
+      {% if session.role == 'student' %}
+        {{ user.course or 'Student Account' }}
+      {% elif session.role == 'teacher' %}
+        {{ user.subject or 'Teacher Account' }}
+      {% else %}
+        Admin Account
+      {% endif %}
+    </span>
+  </div>
+
+  <!-- Details card -->
+  <div class="card">
+    <strong style="font-size:15px; display:block; margin-bottom:20px;">Account Details</strong>
+    <table style="width:100%;">
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 0; font-size:13px; color:var(--muted); width:140px;">Full Name</td>
+        <td style="padding:12px 0; font-size:15px;">{{ user.name }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 0; font-size:13px; color:var(--muted);">Email</td>
+        <td style="padding:12px 0; font-size:15px;">{{ user.email }}</td>
+      </tr>
+      {% if session.role == 'student' %}
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 0; font-size:13px; color:var(--muted);">Phone</td>
+        <td style="padding:12px 0; font-size:15px;">{{ user.phone or '—' }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 0; font-size:13px; color:var(--muted);">Course</td>
+        <td style="padding:12px 0; font-size:15px;">{{ user.course or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 0; font-size:13px; color:var(--muted);">Year</td>
+        <td style="padding:12px 0; font-size:15px;">Year {{ user.year or '—' }}</td>
+      </tr>
+      {% elif session.role == 'teacher' %}
+      <tr>
+        <td style="padding:12px 0; font-size:13px; color:var(--muted);">Subject</td>
+        <td style="padding:12px 0; font-size:15px;">{{ user.subject or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td style="padding:12px 0; font-size:13px; color:var(--muted);">Access Level</td>
+        <td style="padding:12px 0; font-size:15px;">Administrator</td>
+      </tr>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+{% endblock %}

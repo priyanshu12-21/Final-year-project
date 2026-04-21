@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Subjects - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Subjects</h1>
+  <p>Manage grade-wise subjects for the teacher portal.</p>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card accent">
+    <div class="stat-label">Selected Grade</div>
+    <div class="stat-value">Grade {{ selected_grade }}</div>
+  </div>
+  <div class="stat-card success">
+    <div class="stat-label">Subjects</div>
+    <div class="stat-value">{{ subjects | length }}</div>
+    <div class="stat-sub">configured for this grade</div>
+  </div>
+  <div class="stat-card warning">
+    <div class="stat-label">Students</div>
+    <div class="stat-value">{{ students_in_grade }}</div>
+    <div class="stat-sub">currently enrolled</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:20px;">Choose Grade</strong>
+  <form method="GET" action="{{ url_for('subjects') }}">
+    <div class="form-row subject-config-row">
+      <div class="form-group">
+        <label class="form-label">Grade</label>
+        <select name="grade" class="form-control" required>
+          {% for grade in grade_levels %}
+            <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>Grade {{ grade }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group subject-config-action">
+        <button type="submit" class="btn btn-primary">Open Subjects</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:20px;">Add Subject</strong>
+  <form method="POST" action="{{ url_for('add_subject') }}">
+    <input type="hidden" name="grade" value="{{ selected_grade }}" />
+    <div class="form-row subject-config-row">
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <select name="subject_name" class="form-control" required>
+          <option value="">Select subject</option>
+          {% for subject_name in default_subjects %}
+            <option value="{{ subject_name }}">{{ subject_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group subject-config-action">
+        <button type="submit" class="btn btn-primary">Add Subject</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">Grade {{ selected_grade }} Subjects</strong>
+  {% if subjects %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Subject</th><th>Students</th><th>Marks Entries</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for subject in subjects %}
+        <tr>
+          <td><strong>{{ subject.subject_name }}</strong></td>
+          <td>{{ subject.student_count }}</td>
+          <td>{{ subject.marks_entries }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('delete_subject', subject_id=subject.id) }}" onsubmit="return confirm('Remove this subject from Grade {{ selected_grade }}?');">
+              <input type="hidden" name="grade" value="{{ selected_grade }}" />
+              <button type="submit" class="btn btn-outline btn-sm">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No subjects configured for this grade yet.</p>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-top:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">Teachers</strong>
+  {% if teachers %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Subject</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for teacher in teachers %}
+        <tr>
+          <td><strong>{{ teacher.name }}</strong></td>
+          <td>{{ teacher.email }}</td>
+          <td>{{ teacher.subject or '—' }}</td>
+          <td>
+            {% if teacher.subject and teacher.subject in subjects | map(attribute='subject_name') | list %}
+              <span class="badge badge-success">Matches this grade</span>
+            {% else %}
+              <span class="badge badge-warning">Other subject</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No teachers registered yet.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - EduTrack{% endblock %}
+{% block content %}
+
+<section class="card feature-banner dashboard-hero">
+  <div class="dashboard-hero-grid">
+    <div class="dashboard-hero-copy">
+      <h1>Namaste, {{ session.name.split()[0] }}</h1>
+      <p>Your student space brings attendance, marks, fees, notifications, and recommendations into one clearer academic snapshot.</p>
+
+      <div class="hero-badges">
+        <span class="badge">Attendance Tracking</span>
+        <span class="badge">Performance Insights</span>
+        <span class="badge">Fee Monitoring</span>
+      </div>
+
+      <div class="hero-actions">
+        <a href="{{ url_for('download_student_report') }}" class="btn btn-primary">Download Report</a>
+        <a href="{{ url_for('marks') }}" class="btn btn-outline">View Marks</a>
+        <a href="{{ url_for('attendance') }}" class="btn btn-outline">View Attendance</a>
+        <a href="{{ url_for('fees') }}" class="btn btn-outline">View Fees</a>
+      </div>
+    </div>
+
+    <div class="hero-panel">
+      <h3>Quick Snapshot</h3>
+      <div class="hero-metric">
+        <div class="hero-metric-item">
+          <strong>
+            {% if att.total and att.total > 0 %}
+              {{ ((att.present / att.total) * 100) | int }}%
+            {% else %}
+              -
+            {% endif %}
+          </strong>
+          <span>attendance rate</span>
+        </div>
+        <div class="hero-metric-item">
+          <strong>{{ fees | selectattr('status', 'equalto', 'Pending') | list | length }}</strong>
+          <span>unpaid fees</span>
+        </div>
+        <div class="hero-metric-item">
+          <strong>{{ marks | map(attribute='subject') | list | unique | list | length }}</strong>
+          <span>subjects tracked</span>
+        </div>
+        <div class="hero-metric-item">
+          <strong>{{ student.course or '-' }}</strong>
+          <span>Year {{ student.year or '-' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="stat-grid">
+  <div class="stat-card accent">
+    <div class="stat-label">Attendance</div>
+    <div class="stat-value">
+      {% if att.total and att.total > 0 %}
+        {{ ((att.present / att.total) * 100) | int }}%
+      {% else %}
+        -
+      {% endif %}
+    </div>
+    <div class="stat-sub">{{ att.present or 0 }} / {{ att.total or 0 }} classes attended</div>
+  </div>
+
+  <div class="stat-card success">
+    <div class="stat-label">Subjects</div>
+    <div class="stat-value">{{ marks | map(attribute='subject') | list | unique | list | length }}</div>
+    <div class="stat-sub">subjects with recorded marks</div>
+  </div>
+
+  <div class="stat-card warning">
+    <div class="stat-label">Unpaid Fees</div>
+    <div class="stat-value">{{ fees | selectattr('status', 'equalto', 'Pending') | list | length }}</div>
+    <div class="stat-sub">payment records awaiting clearance</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Class</div>
+    <div class="stat-value">{{ student.course or '-' }}</div>
+    <div class="stat-sub">Grade {{ student.year or '-' }}</div>
+  </div>
+</div>
+
+<div class="dashboard-split">
+  <div class="card">
+    <div class="section-card-title">
+      <div>
+        <h3>Attendance Overview</h3>
+        <p>See how close you are to a strong attendance record.</p>
+      </div>
+      {% if att.total and att.total > 0 %}
+        {% set pct = ((att.present / att.total) * 100) | int %}
+        <span class="badge {% if pct >= 75 %}badge-success{% elif pct >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+          {{ pct }}%
+        </span>
+      {% endif %}
+    </div>
+
+    <div class="progress">
+      {% if att.total and att.total > 0 %}
+        {% set pct = ((att.present / att.total) * 100) | int %}
+        <div class="progress-bar {% if pct >= 75 %}success{% elif pct < 50 %}danger{% endif %}" style="width:{{ pct }}%"></div>
+      {% else %}
+        <div class="progress-bar" style="width:0%"></div>
+      {% endif %}
+    </div>
+
+    {% if att.total and att.total > 0 and ((att.present / att.total) * 100) | int < 75 %}
+      <p class="dashboard-progress-note warning">Attendance is below 75%. Try not to miss upcoming classes.</p>
+    {% else %}
+      <p class="dashboard-progress-note">Your attendance is being tracked consistently inside the system.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-card-title">
+      <div>
+        <h3>Academic Focus</h3>
+        <p>Practical reminders based on your recent records.</p>
+      </div>
+    </div>
+    <div class="soft-panel-grid">
+      <div class="soft-panel">
+        <h4>Marks Trend</h4>
+        <p>Use the marks section to compare recent exam results and spot weak subjects early.</p>
+      </div>
+      <div class="soft-panel">
+        <h4>Payment Status</h4>
+        <p>Keep fee records clear so reports and account status stay up to date.</p>
+      </div>
+      <div class="soft-panel">
+        <h4>Class Discipline</h4>
+        <p>Face-based attendance works best when you arrive on time and keep your profile images current.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card dashboard-table-card">
+  <div class="section-card-title">
+    <div>
+      <h3>Recent Marks</h3>
+      <p>Your latest recorded academic results.</p>
+    </div>
+    <a href="{{ url_for('marks') }}" class="btn btn-outline btn-sm">View all</a>
+  </div>
+  {% if marks %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Subject</th><th>Exam</th><th>Score</th><th>Percentage</th></tr></thead>
+      <tbody>
+        {% for m in marks[:5] %}
+        <tr>
+          <td><strong>{{ m.subject }}</strong></td>
+          <td>{{ m.exam_type or '-' }}</td>
+          <td>{{ m.marks_obtained }} / {{ m.total_marks }}</td>
+          <td>
+            {% set pct = ((m.marks_obtained / m.total_marks) * 100) | int %}
+            <span class="badge {% if pct >= 75 %}badge-success{% elif pct >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+              {{ pct }}%
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="card-muted">No marks recorded yet.</p>
+  {% endif %}
+</div>
+
+<div class="card dashboard-table-card">
+  <div class="section-card-title">
+    <div>
+      <h3>Fee Status</h3>
+      <p>Current billing and payment information.</p>
+    </div>
+    <a href="{{ url_for('fees') }}" class="btn btn-outline btn-sm">View all</a>
+  </div>
+  {% if fees %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Description</th><th>Amount</th><th>Due Date</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for f in fees %}
+        <tr>
+          <td>{{ f.description or 'Fee' }}</td>
+          <td>NPR {{ f.amount }}</td>
+          <td>{{ f.due_date or '-' }}</td>
+          <td><span class="badge {% if f.status == 'Paid' %}badge-success{% else %}badge-warning{% endif %}">{{ 'Unpaid' if f.status == 'Pending' else f.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="card-muted">No fee records found.</p>
+  {% endif %}
+</div>
+
+<div class="dashboard-split" style="margin-top:24px;">
+  <div class="card">
+    <div class="section-card-title">
+      <div>
+        <h3>Recommendations</h3>
+        <p>Suggestions based on your attendance, marks, and fees.</p>
+      </div>
+    </div>
+    {% if recommendations %}
+      <div class="stack-list">
+        {% for item in recommendations %}
+          <div class="stack-item">
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.message }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="card-muted">No recommendations yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-card-title">
+      <div>
+        <h3>Notifications</h3>
+        <p>Latest school or teacher messages for you.</p>
+      </div>
+    </div>
+    {% if notifications %}
+      <div class="stack-list">
+        {% for item in notifications %}
+          <div class="stack-item">
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.message }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="card-muted">No notifications yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

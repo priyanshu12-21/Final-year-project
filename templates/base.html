@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}EduTrack{% endblock %}</title>
+  <meta name="theme-color" content="#17324d" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body class="app-body">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <a href="{{ url_for('dashboard') }}" class="sidebar-logo">
+          <span class="sidebar-mark">ET</span>
+          <span>
+            <span class="logo-title">Bijeswori Secondary School</span>
+            <span class="logo-sub">School Management System</span>
+          </span>
+        </a>
+
+        <a href="{{ url_for('profile') }}" class="sidebar-account">
+          <div class="avatar {% if session.role == 'teacher' %}teacher{% elif session.role == 'admin' %}admin{% endif %}">
+            {{ session.name[0].upper() if session.name else '?' }}
+          </div>
+          <div class="user-info">
+            <div class="user-name">{{ session.name }}</div>
+            <div class="user-role">{{ session.role | capitalize }}</div>
+          </div>
+        </a>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Main</div>
+        <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+          <span class="icon">DB</span>
+          <span>Dashboard</span>
+        </a>
+
+        <div class="nav-section-label">Academic</div>
+        <a href="{{ url_for('attendance') }}" class="nav-link {% if request.endpoint in ['attendance','mark_attendance'] %}active{% endif %}">
+          <span class="icon">AT</span>
+          <span>Attendance</span>
+        </a>
+        <a href="{{ url_for('marks') }}" class="nav-link {% if request.endpoint in ['marks','add_marks','save_marks_sheet'] %}active{% endif %}">
+          <span class="icon">MK</span>
+          <span>Marks</span>
+        </a>
+        <a href="{{ url_for('subjects') }}" class="nav-link {% if request.endpoint in ['subjects','add_subject','delete_subject'] %}active{% endif %}">
+          <span class="icon">SB</span>
+          <span>Subjects</span>
+        </a>
+        <a href="{{ url_for('fees') }}" class="nav-link {% if request.endpoint in ['fees','add_fee'] %}active{% endif %}">
+          <span class="icon">FE</span>
+          <span>Fees</span>
+        </a>
+        {% if session.role == 'teacher' %}
+          <a href="{{ url_for('face_camera') }}" class="nav-link {% if request.endpoint == 'face_camera' %}active{% endif %}">
+            <span class="icon">FR</span>
+            <span>Face Recognition</span>
+          </a>
+        {% endif %}
+        {% if session.role in ['teacher', 'admin'] %}
+          <a href="{{ url_for('reports') }}" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
+            <span class="icon">RP</span>
+            <span>Reports</span>
+          </a>
+        {% endif %}
+        {% if session.role == 'admin' %}
+          <a href="{{ url_for('face_admin') }}" class="nav-link {% if request.endpoint in ['face_admin','face_admin_upload','face_admin_train','face_admin_delete','face_admin_image','update_attendance_rule'] %}active{% endif %}">
+            <span class="icon">FA</span>
+            <span>Face Attendance</span>
+          </a>
+        {% endif %}
+
+        <div class="nav-section-label">Info</div>
+        <a href="{{ url_for('about') }}" class="nav-link {% if request.endpoint == 'about' %}active{% endif %}">
+          <span class="icon">AB</span>
+          <span>About</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="{{ url_for('logout') }}" class="logout-btn">
+          <span class="icon">LO</span>
+          <span>Logout</span>
+        </a>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="content-shell">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+</body>
+</html>

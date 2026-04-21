@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}EduTrack{% endblock %}</title>
+  <meta name="theme-color" content="#17324d" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body class="auth-body">
+  <div class="auth-page">
+    <section class="auth-panel auth-panel-brand">
+      <div class="auth-brand-lockup">
+        <div class="auth-brand-badge">EduTrack</div>
+        <h1>{% block auth_heading %}School management made clearer{% endblock %}</h1>
+        <p>{% block auth_intro %}A cleaner sign-in and dashboard structure for students, teachers, and administrators.{% endblock %}</p>
+      </div>
+
+      <div class="auth-brand-card">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="School logo" class="auth-brand-logo" />
+        <div class="auth-feature-list">
+          <div class="auth-feature-item">
+            <span class="auth-feature-icon">AT</span>
+            <div>
+              <strong>Attendance</strong>
+              <p>Manual and face-based attendance in one flow.</p>
+            </div>
+          </div>
+          <div class="auth-feature-item">
+            <span class="auth-feature-icon">MK</span>
+            <div>
+              <strong>Marks and reports</strong>
+              <p>Keep academic progress, fees, and reporting connected.</p>
+            </div>
+          </div>
+          <div class="auth-feature-item">
+            <span class="auth-feature-icon">UI</span>
+            <div>
+              <strong>Consistent UI</strong>
+              <p>Shared templates keep the whole project easier to maintain.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="auth-panel auth-panel-form">
+      <div class="auth-form-shell">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+        {% block auth_content %}{% endblock %}
+      </div>
+    </section>
+  </div>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+.venv-mac/
+.vendor/
+.tmp/
+*.db
+data/face_models/*.dat
+data/face_models/*.dat.bz2
+data/encodings.pickle
+data/database.db
+data/dataset/
+backups/
+.vscode/
+__MACOSX/
+*.DS_Store
+instance/

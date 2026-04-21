@@ -1,0 +1,615 @@
+{% extends "base.html" %}
+{% block title %}Marks - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Marks Sheet</h1>
+  <p>Choose a grade first, then open one full class sheet and fill marks quickly by pasting from Excel.</p>
+</div>
+
+<div class="card" style="margin-bottom:28px;">
+  <strong style="font-size:15px; display:block; margin-bottom:20px;">Open Marks Sheet</strong>
+  <form method="GET" action="{{ url_for('marks') }}" id="marks-config-form">
+    <div class="form-row marks-sheet-config">
+      <div class="form-group">
+        <label class="form-label">Grade</label>
+        <select name="grade" id="marks-grade-select" class="form-control" required>
+          <option value="">Select grade</option>
+          {% for grade in grade_levels %}
+            <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>Grade {{ grade }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <select name="subject" class="form-control" required>
+          <option value="">Select subject</option>
+          {% for subject in subject_options %}
+            <option value="{{ subject }}" {% if selected_subject == subject %}selected{% endif %}>{{ subject }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Exam Type</label>
+        <select name="exam_type" class="form-control">
+          {% for option in exam_type_options %}
+            <option value="{{ option }}" {% if selected_exam_type == option %}selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Total Marks</label>
+        <input
+          type="number"
+          name="total_marks"
+          class="form-control"
+          placeholder="100"
+          value="{{ total_marks_input }}"
+          min="1"
+          step="0.01"
+          required
+        />
+      </div>
+    </div>
+    <input type="hidden" name="student_id" value="" />
+    <button type="submit" class="btn btn-primary">Open Full Grade Sheet</button>
+  </form>
+  <p class="cell-subtext" style="margin-top:12px;">
+    Teachers now work grade by grade, so you do not need to select students one by one before opening the sheet.
+  </p>
+</div>
+
+{% if selected_grade %}
+<div class="card" style="margin-bottom:28px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+    <strong style="font-size:15px; display:block;">Students In Grade {{ selected_grade }}</strong>
+    <span class="badge badge-info">{{ grade_students | length }} student(s)</span>
+  </div>
+  {% if grade_students %}
+  <div class="student-preview-list">
+    {% for student in grade_students %}
+      <div class="student-preview-item">
+        <strong>{{ student.name }}</strong>
+        <span class="cell-subtext">ID {{ student.id }}</span>
+        <span class="cell-subtext">{{ student.course or 'No class set' }}</span>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No students found in this grade.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if selected_subject %}
+<div class="card" style="margin-bottom:28px;">
+  <div class="marks-toolbar">
+    <div>
+      <strong style="font-size:15px; display:block;">Grade {{ selected_grade }} Full Class Sheet</strong>
+      <p class="marks-toolbar-sub">{{ selected_subject }} | {{ selected_exam_type }} | Total marks: {{ total_marks_input }}</p>
+    </div>
+    <div class="marks-search">
+      <label class="form-label" for="student-search" style="margin-bottom:0;">Search Student</label>
+      <input
+        id="student-search"
+        type="text"
+        class="form-control"
+        placeholder="Search by name, class, or year"
+      />
+    </div>
+  </div>
+
+  <div class="marks-helper-banner">
+    This sheet now works more like Excel: click a marks cell, paste a column from Excel, and use Enter, Tab, or the arrow keys to move through the class quickly.
+  </div>
+
+  <div class="card" style="margin-bottom:20px; border:1px dashed var(--border); background:var(--bg);">
+    <strong style="font-size:15px; display:block; margin-bottom:12px;">Bulk Paste Marks</strong>
+    <p class="cell-subtext" style="margin-bottom:12px;">
+      Copy marks from Excel and paste them here. You can paste:
+      one mark per line in student order, or rows like <code>student_id TAB marks</code>, <code>name TAB marks</code>, or <code>name,marks</code>.
+    </p>
+    <textarea
+      id="bulk-marks-input"
+      class="form-control"
+      rows="7"
+      placeholder="Example:&#10;65&#10;72&#10;80&#10;&#10;or&#10;3,65&#10;5,72&#10;7,80"
+      style="resize:vertical; margin-bottom:12px;"
+    ></textarea>
+    <div class="page-actions" style="margin-bottom:0;">
+      <button type="button" class="btn btn-primary" id="apply-bulk-marks-btn">Apply Pasted Marks</button>
+      <button type="button" class="btn btn-outline" id="clear-bulk-marks-btn">Clear Paste Box</button>
+    </div>
+    <div id="bulk-marks-feedback" class="cell-subtext" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="marks-spreadsheet-tipbar">
+    <span><strong>Tip:</strong> Paste one Excel column directly into the first visible marks cell.</span>
+    <span>Use <code>Enter</code>, <code>Tab</code>, <code>↑</code>, and <code>↓</code> to move between students.</span>
+    <span>Double-check the total marks before saving.</span>
+  </div>
+
+  <form method="POST" action="{{ url_for('save_marks_sheet') }}">
+    <input type="hidden" name="grade" value="{{ selected_grade }}" />
+    <input type="hidden" name="subject" value="{{ selected_subject }}" />
+    <input type="hidden" name="exam_type" value="{{ selected_exam_type }}" />
+    <input type="hidden" name="total_marks" value="{{ total_marks_input }}" />
+
+    <div class="marks-sheet-summary">
+      <div class="marks-sheet-summary-card">
+        <span class="cell-subtext">Students in sheet</span>
+        <strong>{{ sheet_rows | length }}</strong>
+      </div>
+      <div class="marks-sheet-summary-card">
+        <span class="cell-subtext">Subject</span>
+        <strong>{{ selected_subject }}</strong>
+      </div>
+      <div class="marks-sheet-summary-card">
+        <span class="cell-subtext">Exam type</span>
+        <strong>{{ selected_exam_type }}</strong>
+      </div>
+      <div class="marks-sheet-summary-card">
+        <span class="cell-subtext">Total marks</span>
+        <strong id="marks-total-display">{{ total_marks_input }}</strong>
+      </div>
+    </div>
+
+    <div class="table-wrap marks-sheet-wrap">
+      <table class="marks-sheet-table marks-spreadsheet-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Student Details</th>
+            <th>Marks</th>
+            <th>Percentage</th>
+            <th>Grade Preview</th>
+          </tr>
+        </thead>
+        <tbody id="marks-sheet-body">
+          {% for row in sheet_rows %}
+            {% set pct = ((row.marks_obtained|float / row.total_marks|float) * 100) | int if row.marks_obtained != "" and row.total_marks else None %}
+            <tr data-search="{{ (row.student_name ~ ' ' ~ (row.course or '') ~ ' ' ~ (row.year or '')) | lower }}">
+              <td class="marks-row-index">{{ loop.index }}</td>
+              <td>
+                <div class="student-name-cell">
+                  <strong>{{ row.student_name }}</strong>
+                </div>
+              </td>
+              <td>
+                <div class="student-meta-stack">
+                  <span class="cell-subtext">ID {{ row.student_id }}</span>
+                  <span class="cell-subtext">Class: {{ row.course or '-' }}</span>
+                  <span class="cell-subtext">Grade: {{ row.year or '-' }}</span>
+                </div>
+              </td>
+              <td>
+                <input
+                  type="number"
+                  name="marks_{{ row.student_id }}"
+                  class="form-control sheet-score-input"
+                  data-index="{{ loop.index0 }}"
+                  data-student-id="{{ row.student_id }}"
+                  data-student-name="{{ row.student_name | lower }}"
+                  data-total-marks="{{ total_marks_input }}"
+                  value="{{ row.marks_obtained }}"
+                  min="0"
+                  step="0.01"
+                  max="{{ total_marks_input }}"
+                  placeholder="Enter marks"
+                  inputmode="decimal"
+                  autocomplete="off"
+                />
+              </td>
+              <td>
+                <span class="marks-percentage-value" data-percentage>
+                  {% if pct is not none %}
+                    {{ pct }}%
+                  {% else %}
+                    -
+                  {% endif %}
+                </span>
+              </td>
+              <td>
+                {% if pct is not none %}
+                  <span class="badge marks-grade-badge {% if pct >= 80 %}badge-success{% elif pct >= 50 %}badge-warning{% else %}badge-danger{% endif %}" data-grade-badge>
+                    {{ pct }}%{% if pct >= 80 %} (A){% elif pct >= 70 %} (B){% elif pct >= 60 %} (C){% elif pct >= 50 %} (D){% else %} (F){% endif %}
+                  </span>
+                {% else %}
+                  <span class="badge badge-info marks-grade-badge" data-grade-badge>Not entered</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="marks-sheet-actions">
+      <button type="submit" class="btn btn-primary">Save Marks Sheet</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:28px;">
+  <div style="display:flex; justify-content:space-between; align-items:end; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+    <strong style="font-size:15px; display:block;">Recent Marks Records</strong>
+    <div class="recent-marks-tools">
+      <form method="GET" action="{{ url_for('marks') }}" class="recent-marks-filter">
+        <input type="hidden" name="grade" value="{{ selected_grade or '' }}" />
+        <input type="hidden" name="student_id" value="{{ selected_student or '' }}" />
+        <input type="hidden" name="subject" value="{{ selected_subject or '' }}" />
+        <input type="hidden" name="exam_type" value="{{ selected_exam_type or '' }}" />
+        <input type="hidden" name="total_marks" value="{{ total_marks_input or '' }}" />
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Grade</label>
+          <select name="recent_grade" class="form-control" onchange="this.form.submit()">
+            <option value="">All grades</option>
+            {% for grade in grade_levels %}
+              <option value="{{ grade }}" {% if recent_grade == grade %}selected{% endif %}>Grade {{ grade }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </form>
+      <div class="recent-marks-filter">
+        <label class="form-label">Search Records</label>
+        <input
+          type="text"
+          id="recent-records-search"
+          class="form-control"
+          placeholder="Search by student, subject, exam, or grade"
+        />
+      </div>
+    </div>
+  </div>
+  {% if records %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Student</th><th>Grade</th><th>Subject</th><th>Exam</th><th>Score</th><th>Percentage</th></tr></thead>
+      <tbody>
+        {% for m in records %}
+          {% set pct = ((m.marks_obtained / m.total_marks) * 100) | int %}
+          <tr data-record-search="{{ (m.student_name ~ ' ' ~ (m.student_grade or '') ~ ' ' ~ m.subject ~ ' ' ~ (m.exam_type or '')) | lower }}">
+            <td>
+              <a
+                href="{{ url_for('marks', grade=selected_grade, student_id=selected_student, subject=selected_subject, exam_type=selected_exam_type, total_marks=total_marks_input, recent_grade=recent_grade, recent_student=m.student_id) }}"
+                class="student-record-link"
+              >
+                {{ m.student_name }}
+              </a>
+            </td>
+            <td>Grade {{ m.student_grade or '-' }}</td>
+            <td>{{ m.subject }}</td>
+            <td>{{ m.exam_type or '-' }}</td>
+            <td>{{ m.marks_obtained }} / {{ m.total_marks }}</td>
+            <td>
+              <span class="badge {% if pct >= 75 %}badge-success{% elif pct >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+                {{ pct }}%
+              </span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No marks added yet.</p>
+  {% endif %}
+</div>
+
+{% if recent_student_info %}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+    <div>
+      <strong style="font-size:15px; display:block;">{{ recent_student_info.name }} Marks Spreadsheet</strong>
+      <span class="marks-toolbar-sub">Grade {{ recent_student_info.year or '-' }}{% if recent_student_info.course %} - {{ recent_student_info.course }}{% endif %}</span>
+    </div>
+    <a
+      href="{{ url_for('marks', grade=selected_grade, student_id=selected_student, subject=selected_subject, exam_type=selected_exam_type, total_marks=total_marks_input, recent_grade=recent_grade) }}"
+      class="btn btn-outline btn-sm"
+    >
+      Close
+    </a>
+  </div>
+
+  {% if recent_student_marks %}
+  <div class="table-wrap marks-sheet-wrap">
+    <table class="marks-sheet-table">
+      <thead><tr><th>#</th><th>Subject</th><th>Exam Type</th><th>Marks</th><th>Percentage</th></tr></thead>
+      <tbody>
+        {% for item in recent_student_marks %}
+          {% set pct = ((item.marks_obtained / item.total_marks) * 100) | int if item.total_marks else 0 %}
+          <tr>
+            <td class="marks-row-index">{{ loop.index }}</td>
+            <td><strong>{{ item.subject }}</strong></td>
+            <td>{{ item.exam_type or '-' }}</td>
+            <td>{{ item.marks_obtained }} / {{ item.total_marks }}</td>
+            <td>
+              <span class="badge {% if pct >= 75 %}badge-success{% elif pct >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+                {{ pct }}%
+              </span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No marks found for this student.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+  const searchInput = document.getElementById('student-search');
+  const tableBody = document.getElementById('marks-sheet-body');
+  const bulkMarksInput = document.getElementById('bulk-marks-input');
+  const applyBulkMarksBtn = document.getElementById('apply-bulk-marks-btn');
+  const clearBulkMarksBtn = document.getElementById('clear-bulk-marks-btn');
+  const bulkMarksFeedback = document.getElementById('bulk-marks-feedback');
+  const marksInputs = Array.from(document.querySelectorAll('.sheet-score-input'));
+
+  if (searchInput && tableBody) {
+    searchInput.addEventListener('input', function () {
+      const query = this.value.trim().toLowerCase();
+      const rows = tableBody.querySelectorAll('tr');
+
+      rows.forEach(function (row) {
+        const haystack = row.dataset.search || '';
+        row.style.display = haystack.includes(query) ? '' : 'none';
+      });
+    });
+  }
+
+  const gradeSelect = document.getElementById('marks-grade-select');
+  const configForm = document.getElementById('marks-config-form');
+  const recentSearch = document.getElementById('recent-records-search');
+
+  if (gradeSelect && configForm) {
+    gradeSelect.addEventListener('change', function () {
+      configForm.submit();
+    });
+  }
+
+  if (recentSearch) {
+    recentSearch.addEventListener('input', function () {
+      const query = this.value.trim().toLowerCase();
+      const rows = document.querySelectorAll('tr[data-record-search]');
+
+      rows.forEach(function (row) {
+        const haystack = row.dataset.recordSearch || '';
+        row.style.display = haystack.includes(query) ? '' : 'none';
+      });
+    });
+  }
+
+  function visibleMarksInputs() {
+    return marksInputs.filter(function (input) {
+      const row = input.closest('tr');
+      return row && row.style.display !== 'none';
+    });
+  }
+
+  function findInputByKey(key) {
+    const normalizedKey = key.trim().toLowerCase();
+    return marksInputs.find(function (input) {
+      const studentId = (input.dataset.studentId || '').trim().toLowerCase();
+      const studentName = (input.dataset.studentName || '').trim().toLowerCase();
+      return normalizedKey === studentId || normalizedKey === studentName;
+    });
+  }
+
+  function gradeLabelForPercentage(percentage) {
+    if (percentage >= 80) {
+      return { text: 'A', className: 'badge-success' };
+    }
+    if (percentage >= 70) {
+      return { text: 'B', className: 'badge-warning' };
+    }
+    if (percentage >= 60) {
+      return { text: 'C', className: 'badge-warning' };
+    }
+    if (percentage >= 50) {
+      return { text: 'D', className: 'badge-warning' };
+    }
+    return { text: 'F', className: 'badge-danger' };
+  }
+
+  function updateMarksPreview(input) {
+    const row = input.closest('tr');
+    if (!row) {
+      return;
+    }
+
+    const percentageNode = row.querySelector('[data-percentage]');
+    const gradeBadge = row.querySelector('[data-grade-badge]');
+    const totalMarks = Number(input.dataset.totalMarks || input.max || 0);
+    const rawValue = input.value.trim();
+    const numericValue = Number(rawValue);
+
+    row.classList.toggle('marks-row-active', document.activeElement === input);
+
+    if (!rawValue || Number.isNaN(numericValue) || !totalMarks) {
+      if (percentageNode) {
+        percentageNode.textContent = '-';
+      }
+      if (gradeBadge) {
+        gradeBadge.className = 'badge badge-info marks-grade-badge';
+        gradeBadge.textContent = 'Not entered';
+      }
+      return;
+    }
+
+    const boundedValue = Math.max(0, Math.min(numericValue, totalMarks));
+    if (String(boundedValue) !== rawValue && document.activeElement !== input) {
+      input.value = boundedValue;
+    }
+
+    const percentage = Math.round((boundedValue / totalMarks) * 100);
+    const gradeMeta = gradeLabelForPercentage(percentage);
+
+    if (percentageNode) {
+      percentageNode.textContent = `${percentage}%`;
+    }
+    if (gradeBadge) {
+      gradeBadge.className = `badge marks-grade-badge ${gradeMeta.className}`;
+      gradeBadge.textContent = `${percentage}% (${gradeMeta.text})`;
+    }
+  }
+
+  function focusRelativeInput(currentInput, step) {
+    const visibleInputs = visibleMarksInputs();
+    const currentIndex = visibleInputs.indexOf(currentInput);
+    if (currentIndex === -1) {
+      return;
+    }
+    const target = visibleInputs[currentIndex + step];
+    if (target) {
+      target.focus();
+      target.select();
+    }
+  }
+
+  function applyGridPaste(startInput, rawText) {
+    const lines = rawText
+      .trim()
+      .split(/\r?\n/)
+      .map(function (line) { return line.split('\t'); })
+      .filter(function (cells) { return cells.some(function (cell) { return cell.trim() !== ''; }); });
+
+    if (!lines.length) {
+      return false;
+    }
+
+    const visibleInputs = visibleMarksInputs();
+    const startIndex = visibleInputs.indexOf(startInput);
+    if (startIndex === -1) {
+      return false;
+    }
+
+    let appliedCount = 0;
+    lines.forEach(function (cells, rowOffset) {
+      const targetInput = visibleInputs[startIndex + rowOffset];
+      if (!targetInput) {
+        return;
+      }
+      const marksValue = (cells[cells.length - 1] || '').trim();
+      if (!marksValue || Number.isNaN(Number(marksValue))) {
+        return;
+      }
+      targetInput.value = marksValue;
+      updateMarksPreview(targetInput);
+      appliedCount += 1;
+    });
+
+    if (bulkMarksFeedback) {
+      bulkMarksFeedback.textContent = `Applied ${appliedCount} mark(s) from pasted spreadsheet data.`;
+    }
+    return appliedCount > 0;
+  }
+
+  function applyBulkMarks() {
+    if (!bulkMarksInput || !bulkMarksFeedback) {
+      return;
+    }
+
+    const rawText = bulkMarksInput.value.trim();
+    if (!rawText) {
+      bulkMarksFeedback.textContent = 'Paste some marks first.';
+      return;
+    }
+
+    const lines = rawText
+      .split(/\r?\n/)
+      .map(function (line) { return line.trim(); })
+      .filter(Boolean);
+
+    const visibleInputs = visibleMarksInputs();
+    let sequentialIndex = 0;
+    let appliedCount = 0;
+    let skippedCount = 0;
+
+    lines.forEach(function (line) {
+      const parts = line.split(/\t|,/).map(function (part) { return part.trim(); }).filter(Boolean);
+      let targetInput = null;
+      let marksValue = null;
+
+      if (parts.length === 1) {
+        targetInput = visibleInputs[sequentialIndex] || null;
+        marksValue = parts[0];
+        sequentialIndex += 1;
+      } else {
+        targetInput = findInputByKey(parts[0]);
+        marksValue = parts[parts.length - 1];
+      }
+
+      const numericValue = Number(marksValue);
+      if (!targetInput || Number.isNaN(numericValue)) {
+        skippedCount += 1;
+        return;
+      }
+
+      targetInput.value = numericValue;
+      updateMarksPreview(targetInput);
+      appliedCount += 1;
+    });
+
+    bulkMarksFeedback.textContent = `Applied ${appliedCount} mark(s). Skipped ${skippedCount} line(s).`;
+  }
+
+  if (applyBulkMarksBtn) {
+    applyBulkMarksBtn.addEventListener('click', applyBulkMarks);
+  }
+
+  if (clearBulkMarksBtn && bulkMarksInput && bulkMarksFeedback) {
+    clearBulkMarksBtn.addEventListener('click', function () {
+      bulkMarksInput.value = '';
+      bulkMarksFeedback.textContent = '';
+    });
+  }
+
+  marksInputs.forEach(function (input) {
+    updateMarksPreview(input);
+
+    input.addEventListener('focus', function () {
+      const row = input.closest('tr');
+      if (row) {
+        row.classList.add('marks-row-active');
+      }
+      input.select();
+    });
+
+    input.addEventListener('blur', function () {
+      const row = input.closest('tr');
+      if (row) {
+        row.classList.remove('marks-row-active');
+      }
+      updateMarksPreview(input);
+    });
+
+    input.addEventListener('input', function () {
+      updateMarksPreview(input);
+    });
+
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        focusRelativeInput(input, 1);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        focusRelativeInput(input, -1);
+      }
+    });
+
+    input.addEventListener('paste', function (event) {
+      const clipboardText = (event.clipboardData || window.clipboardData).getData('text');
+      if (!clipboardText || !/[\r\n\t]/.test(clipboardText)) {
+        return;
+      }
+      event.preventDefault();
+      applyGridPaste(input, clipboardText);
+    });
+  });
+</script>
+
+{% endblock %}

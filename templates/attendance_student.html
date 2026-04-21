@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Attendance - EduTrack{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>My Attendance</h1>
+  <p>Track your class attendance. Students can only view attendance here.</p>
+</div>
+
+<div class="card" style="margin-bottom:24px;">
+  <strong style="display:block; margin-bottom:8px;">Student access</strong>
+  <p style="color:var(--muted); margin:0;">
+    Attendance is marked automatically by teachers or admins through face recognition, or manually by staff when needed. Students can only review their records from this page.
+  </p>
+</div>
+
+<div class="page-actions no-print">
+  <button type="button" class="btn btn-outline" onclick="window.print()">Print Attendance</button>
+  <a href="{{ url_for('download_attendance_report') }}" class="btn btn-primary">Download Attendance CSV</a>
+</div>
+
+{% if records %}
+  {% set total = records | length %}
+  {% set present = records | rejectattr('status', 'equalto', 'Absent') | list | length %}
+  {% set pct = ((present / total) * 100) | int if total > 0 else 0 %}
+
+  <div class="stat-grid" style="margin-bottom:24px;">
+    <div class="stat-card accent">
+      <div class="stat-label">Total Classes</div>
+      <div class="stat-value">{{ total }}</div>
+    </div>
+    <div class="stat-card success">
+      <div class="stat-label">Present</div>
+      <div class="stat-value">{{ present }}</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-label">Absent</div>
+      <div class="stat-value">{{ total - present }}</div>
+    </div>
+    <div class="stat-card {% if pct >= 75 %}success{% else %}warning{% endif %}">
+      <div class="stat-label">Percentage</div>
+      <div class="stat-value">{{ pct }}%</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <span style="font-size:14px; font-weight:500;">Overall Attendance</span>
+      <span class="badge {% if pct >= 75 %}badge-success{% elif pct >= 50 %}badge-warning{% else %}badge-danger{% endif %}">{{ pct }}%</span>
+    </div>
+    <div class="progress">
+      <div class="progress-bar {% if pct >= 75 %}success{% elif pct < 50 %}danger{% endif %}" style="width:{{ pct }}%"></div>
+    </div>
+    {% if pct < 75 %}
+      <p style="font-size:13px; color:var(--danger); margin-top:8px;">Your attendance is below 75%. You need to attend more classes.</p>
+    {% endif %}
+  </div>
+{% endif %}
+
+<div class="card">
+  <strong style="font-size:15px; display:block; margin-bottom:16px;">Attendance Records</strong>
+  {% if records %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Time</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td>{{ r.date }}</td>
+          <td>{{ r.time or '-' }}</td>
+          <td>
+            <span class="badge {% if r.status == 'Present' %}badge-success{% elif r.status in ['Late', 'Very Late'] %}badge-warning{% else %}badge-danger{% endif %}">
+              {{ r.status }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:14px;">No attendance records yet.</p>
+  {% endif %}
+</div>
+
+{% endblock %}
